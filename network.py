@@ -12,23 +12,26 @@ from itertools import count
 import torch as t
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from calculate_loss import calculate_loss
+from calculate_loss import calculate_loss_DQN, calculate_loss_accelerator
 from device import Device
 from replay_buffer import ReplayBufferDQN
 import numpy as np
 from utils import as_tensor
 import getch
 from datetime import datetime
+from models.model_accelerator import Accelerator
 
 class DQN:
     def __init__(self,model,SIMULATOR,args):
         
         self.model = model
         self.target = deepcopy(self.model)
+        self.accelerator = Accelerator().to(Device.get_device())
         self.simulator = SIMULATOR(args.headless)
         self.args = args
         self.buffer = ReplayBufferDQN(args)
-        self.optimiser = t.optim.Adam(params=self.model.parameters(), lr=self.args.lr)
+        self.optimiser_DQN = t.optim.Adam(params=self.model.parameters(), lr=self.args.lr)
+        self.optimiser_accelerator = t.optim.Adam(params=self.accelerator.parameters(), lr=self.args.lr)
         
         self.total_reward = 0
         
@@ -129,27 +132,55 @@ class DQN:
                     
                     if ((itr >= self.args.warmup) and (len(self.buffer) > self.args.batch_size)):
                         
+                        
                         # Sample a data point from dataset
                         batch = self.buffer.sample_batch(self.model,self.target)
                         
+                        
+                        ###################
+                        ####### DQN #######
+                        ###################
+                        
                         # Calculate loss for the batch
-                        loss = calculate_loss(self.model, self.target, batch, self.args, Device.get_device())
+                        loss_DQN = calculate_loss_DQN(self.model, self.target, batch, self.args, Device.get_device())
                         
                         # Compute gradients
-                        loss.backward()
+                        loss_DQN.backward()
                         
                         # Update weights
-                        self.optimiser.step()
+                        self.optimiser_DQN.step()
                         
                         # Zero gradients
                         self.model.zero_grad()
                     
                         # Convert to numbers
-                        loss = loss.item()
+                        loss_DQN = loss_DQN.item()
+                        
+                        
+                        ###################
+                        ### Accelerator ###
+                        ###################
+                        
+                        # Calculate loss for the batch
+                        loss_acc = calculate_loss_accelerator(self.accelerator, batch, self.args, Device.get_device())
+                        
+                        # Compute gradients
+                        loss_acc.backward()
+                        
+                        # Update weights
+                        self.optimiser_accelerator.step()
+                        
+                        # Zero gradients
+                        self.accelerator.zero_grad()
+                    
+                        # Convert to numbers
+                        loss_acc = loss_acc.item()
+                        
+                       
                         
                     else:
                         
-                        loss = 0
+                        loss_DQN = 0
                         
                     
                     # Early termination conditions
@@ -157,8 +188,8 @@ class DQN:
                         break
                 
                 # Log the results
-                logging.debug('Episode reward: {:.2f}, Epsilon: {:.2f}, Batch loss: {:.6f}, Buffer size: {}'.format(episode_reward, eps, loss,len(self.buffer)))
-                writer.add_scalar('Batch loss', loss,itr)
+                logging.debug('Episode reward: {:.2f}, Epsilon: {:.2f}, Batch loss: {:.6f}, Buffer size: {}'.format(episode_reward, eps, loss_DQN, len(self.buffer)))
+                writer.add_scalar('Batch loss', loss_DQN,itr)
                 writer.add_scalar('Episode reward', episode_reward, itr)
                 writer.add_scalar('Total reward',self.total_reward,itr)
                 writer.add_scalar('Epsilon value',eps,itr)

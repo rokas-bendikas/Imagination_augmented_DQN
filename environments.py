@@ -1,6 +1,6 @@
-from models.RLBench_model import RLBenchModel
+from models.RLBenchDQN import DQN
 from simulator.RLBench import RLBench
 
 environments = {
-    'RLBench': (RLBench, RLBenchModel)
+    'RLBench': (RLBench, DQN)
 }

@@ -1,10 +1,10 @@
 import torch.nn as nn
-
 from models.base import BaseModel
 
 
 
-class RLBenchModel(BaseModel):
+
+class DQN(BaseModel):
     def __init__(self):
         super().__init__()
         
@@ -52,7 +52,7 @@ class RLBenchModel(BaseModel):
             nn.Linear(2304, out_features=1152), 
             nn.ReLU(),
             nn.Linear(1152, out_features=7))
-                  
+            
 
     def forward(self,x):
         
@@ -60,6 +60,7 @@ class RLBenchModel(BaseModel):
             x = x.unsqueeze(0).permute(0,3,1,2)
         
         y = self.network(x)
+    
         
         
         return y
