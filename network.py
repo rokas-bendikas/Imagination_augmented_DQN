@@ -32,6 +32,7 @@ class DQN:
         self.buffer = ReplayBufferDQN(args)
         self.optimiser_DQN = t.optim.Adam(params=self.model.parameters(), lr=self.args.lr)
         self.optimiser_accelerator = t.optim.Adam(params=self.accelerator.parameters(), lr=self.args.lr)
+        self.args.n_actions = self.simulator.n_actions()
         
         self.total_reward = 0
         
@@ -54,7 +55,9 @@ class DQN:
         
             self.model.to(Device.get_device())
             self.model.train()
-        
+            
+            self.accelerator.to(Device.get_device())
+            self.accelerator.train()
             
             self.target.to(Device.get_device())
             self.target.eval()
@@ -134,7 +137,32 @@ class DQN:
                         
                         
                         # Sample a data point from dataset
-                        batch = self.buffer.sample_batch(self.model,self.target)
+                        batch = self.buffer.sample_batch(self.model,self.target,self.accelerator,Device.get_device())
+                        
+                        ###################
+                        ### Accelerator ###
+                        ###################
+                        
+                        # Calculate loss for the batch
+                        loss_acc = calculate_loss_accelerator(self.accelerator, batch, self.args, Device.get_device())
+                        
+                        # Predict all possible actions for state and next_stage
+                        with t.no_grad():
+                            state_img = self.accelerator.imagination_rollout(batch[0],self.args,Device.get_device())
+                            next_state_img = self.accelerator.imagination_rollout(batch[3],self.args,Device.get_device())
+                        
+                        # Compute gradients
+                        loss_acc.backward()
+                        
+                        # Update weights
+                        self.optimiser_accelerator.step()
+                        
+                        # Zero gradients
+                        self.accelerator.zero_grad()
+                    
+                        # Convert to numbers
+                        loss_acc = loss_acc.item()
+                        
                         
                         
                         ###################
@@ -142,7 +170,7 @@ class DQN:
                         ###################
                         
                         # Calculate loss for the batch
-                        loss_DQN = calculate_loss_DQN(self.model, self.target, batch, self.args, Device.get_device())
+                        loss_DQN = calculate_loss_DQN(self.model, self.target, batch, state_img, next_state_img, self.args, Device.get_device())
                         
                         # Compute gradients
                         loss_DQN.backward()
@@ -157,26 +185,6 @@ class DQN:
                         loss_DQN = loss_DQN.item()
                         
                         
-                        ###################
-                        ### Accelerator ###
-                        ###################
-                        
-                        # Calculate loss for the batch
-                        loss_acc = calculate_loss_accelerator(self.accelerator, batch, self.args, Device.get_device())
-                        
-                        # Compute gradients
-                        loss_acc.backward()
-                        
-                        # Update weights
-                        self.optimiser_accelerator.step()
-                        
-                        # Zero gradients
-                        self.accelerator.zero_grad()
-                    
-                        # Convert to numbers
-                        loss_acc = loss_acc.item()
-                        
-                       
                         
                     else:
                         

@@ -41,7 +41,7 @@ class ReplayBufferDQN:
         
         
         
-    def sample_batch(self,model,target_net):
+    def sample_batch(self,model,target_net,accelerator,device):
         
         sample = self.memory.sample(self.args.batch_size)
         
@@ -58,12 +58,21 @@ class ReplayBufferDQN:
         terminals = term.to(Device.get_device())
         
         
+        with t.no_grad():
+            state_img = accelerator.imagination_rollout(states,self.args,device)
+            next_state_img = accelerator.imagination_rollout(next_states,self.args,device)
+        
+        # Concatinate state obs and model prediction
+        state_augmented = t.cat((states,state_img),1)
+        next_state_augmented = t.cat((next_states,next_state_img),1)
+        
+        
         indexes = sample["indexes"]
             
         with t.no_grad():
               
-            target = rewards + terminals * self.args.gamma * target_net(next_states).max()
-            predicted = model(states).gather(1,actions)
+            target = rewards + terminals * self.args.gamma * target_net(next_state_augmented).max()
+            predicted = model(state_augmented).gather(1,actions)
                   
             
         new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').cpu().numpy()

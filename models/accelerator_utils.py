@@ -9,6 +9,7 @@ Created on Wed May 19 22:38:31 2021
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
 class DoubleConv(nn.Module):
@@ -79,3 +80,13 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+    
+    
+def OneHot(action: int,num_actions: int):
+    
+    action_onehot = np.zeros(num_actions)
+    action_onehot[action] = 1
+    
+    return action_onehot
+    
+    
