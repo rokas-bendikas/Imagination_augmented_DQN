@@ -40,6 +40,6 @@ def calculate_loss_accelerator(model, batch, hyperparameters, device):
     
     predicted = model(state,action,hyperparameters,device)
     
-    loss = f.kl_div(predicted,next_state,reduction='batchmean')
+    loss = f.mse_loss(predicted,next_state)
 
     return loss
