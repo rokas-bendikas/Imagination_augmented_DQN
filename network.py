@@ -70,6 +70,9 @@ class DQN:
                 
                 episode_reward = 0
                 
+                loss_a = 0
+                loss_d = 0
+                
                 for e in count():
                     
                     
@@ -189,14 +192,20 @@ class DQN:
                     else:
                         
                         loss_DQN = 0
+                        loss_acc = 0
+                        
+                    loss_a += loss_acc
+                    loss_d += loss_DQN
                         
                     
                     # Early termination conditions
                     if (terminal or (e>self.args.episode_length)):
+                        loss_a /= e
+                        loss_d /= e
                         break
                 
                 # Log the results
-                logging.debug('Episode reward: {:.2f}, Epsilon: {:.2f}, DQN loss: {:.6f}, Accelerator loss: {:.6f} Buffer size: {}'.format(episode_reward, eps, loss_DQN, loss_acc, len(self.buffer)))
+                logging.debug('Episode reward: {:.2f}, Epsilon: {:.2f}, DQN loss: {:.6f}, Accelerator loss: {:.6f} Buffer size: {}'.format(episode_reward, eps, loss_d, loss_a, len(self.buffer)))
                 writer.add_scalar('DQN loss', loss_DQN,itr)
                 writer.add_scalar('Accelerator loss', loss_acc,itr)
                 writer.add_scalar('Episode reward', episode_reward, itr)

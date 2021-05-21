@@ -30,7 +30,7 @@ def main():
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
     parser.add_argument('--eps', default=0.997, type=float, help='Greedy constant for the training [default = 0.997]')
     parser.add_argument('--min_eps', default=0.1, type=float, help='Minimum value for greedy constant [default = 0.1]')
-    parser.add_argument('--buffer_size', default=100000, type=int, help='Buffer size [default = 100000]')
+    parser.add_argument('--buffer_size', default=100, type=int, help='Buffer size [default = 100000]')
     parser.add_argument('--episode_length', default=500, type=int, help='Episode length [default=900]')
     parser.add_argument('--max_episodes', default=1000, type=int, help='Stop after this many episodes [default=1000]')
     parser.add_argument('--headless', default=False, type=bool, help='Run simulation headless [default=False]')
