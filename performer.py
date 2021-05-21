@@ -42,7 +42,7 @@ class Performer():
             
             terminal = False
             
-            for i in range(800):
+            for i in range(100):
              
                 if np.random.RandomState().rand() < 0.1:
                     action = np.random.RandomState().randint(self.simulator.n_actions())

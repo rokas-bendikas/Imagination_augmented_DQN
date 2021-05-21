@@ -3,3 +3,4 @@
 /runs
 /trained
 **/__pycache__
+*.pt
