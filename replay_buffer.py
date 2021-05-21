@@ -76,7 +76,7 @@ class ReplayBufferDQN:
                   
             
         new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').cpu().numpy()
-        new_priorities[new_priorities<1] = 1
+        
             
         self.memory.update_priorities(indexes,new_priorities)
         

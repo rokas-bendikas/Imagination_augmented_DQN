@@ -196,8 +196,9 @@ class DQN:
                         break
                 
                 # Log the results
-                logging.debug('Episode reward: {:.2f}, Epsilon: {:.2f}, Batch loss: {:.6f}, Buffer size: {}'.format(episode_reward, eps, loss_DQN, len(self.buffer)))
-                writer.add_scalar('Batch loss', loss_DQN,itr)
+                logging.debug('Episode reward: {:.2f}, Epsilon: {:.2f}, DQN loss: {:.6f}, Accelerator loss: {:.6f} Buffer size: {}'.format(episode_reward, eps, loss_DQN, loss_acc, len(self.buffer)))
+                writer.add_scalar('DQN loss', loss_DQN,itr)
+                writer.add_scalar('Accelerator loss', loss_acc,itr)
                 writer.add_scalar('Episode reward', episode_reward, itr)
                 writer.add_scalar('Total reward',self.total_reward,itr)
                 writer.add_scalar('Epsilon value',eps,itr)
