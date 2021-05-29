@@ -19,6 +19,7 @@ from utils import as_tensor,data_to_queue
 from replay_buffer import ReplayBufferDQN
 from optimise_model import optimise_DQN,optimise_accelerator
 
+t.multiprocessing.set_sharing_strategy('file_system')
         
 
 def collect(SIMULATOR,model_shared,accelerator_shared,queue,lock,args):

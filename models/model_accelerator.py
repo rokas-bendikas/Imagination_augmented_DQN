@@ -69,6 +69,9 @@ class Accelerator(BaseModel):
     # Predict succesor states for every action possible
     def rollout(self, state, args, device):
         
+        if(len(state.shape)==3):
+            state = state.unsqueeze(0).permute(0,3,1,2)
+    
         state = state.to(device)
         
         # Pre-allocate rollout, shape [batch_size,num_channels*num_actions,img_height,img_width]
