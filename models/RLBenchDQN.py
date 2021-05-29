@@ -1,12 +1,14 @@
+import torch as t
 import torch.nn as nn
 from models.base import BaseModel
 
 
 
 
+
 class DQN(BaseModel):
     def __init__(self):
-        super().__init__()
+        super(DQN,self).__init__()
         
 
         self.network = nn.Sequential(
@@ -54,12 +56,14 @@ class DQN(BaseModel):
             nn.Linear(2304, out_features=7))
             
 
-    def forward(self,x):
+    def forward(self,x,rollout):
         
         if(len(x.shape)==3):
             x = x.unsqueeze(0).permute(0,3,1,2)
+            
+        inp = t.cat((x,rollout),1)
         
-        y = self.network(x)
+        y = self.network(inp)
     
         
         

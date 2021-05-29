@@ -2,7 +2,7 @@ import torch as t
 import torch.nn.functional as f
 
 
-def calculate_loss_DQN(q_network, target_network, batch, state_img, next_state_img, hyperparameters,device):
+def calculate_loss_DQN(q_network, target_network, batch, state_rollout, next_state_rollout, hyperparameters,device):
     
     state, action, reward, next_state, terminal = batch
     
@@ -13,17 +13,13 @@ def calculate_loss_DQN(q_network, target_network, batch, state_img, next_state_i
     terminal = terminal.to(device)
     action = action.to(device)
     
-    # Concatinate state obs and model prediction
-    state_augmented = t.cat((state,state_img),1)
-    next_state_augmented = t.cat((next_state,next_state_img),1)
-    
     
     # Target value
     with t.no_grad():
-        target = reward + terminal * hyperparameters.gamma * target_network(next_state_augmented).max()
+        target = reward + terminal * hyperparameters.gamma * target_network(next_state,next_state_rollout).max()
         
     # Network output    
-    predicted = q_network(state_augmented).gather(1,action)
+    predicted = q_network(state,state_rollout).gather(1,action)
     
 
     return f.smooth_l1_loss(predicted, target)
