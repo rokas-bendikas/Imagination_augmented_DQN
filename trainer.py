@@ -4,11 +4,20 @@ import shutil
 from environments import environments
 from network import collect, optimise
 import torch.multiprocessing as mp
+import ctypes
 from utils import checkpoint as cp
 
 
 
-
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
     
     
 def main():
@@ -29,22 +38,27 @@ def main():
     parser.add_argument('--save_accelerator', default='./accelerator.pts', help='Path to save the model [default = "/accelerator.pts"]')
     parser.add_argument('--load_model', default='', help='Path to load the model [default = '']')
     parser.add_argument('--load_model_acc', default='', help='Path to load the model [default = '']')
-    parser.add_argument('--target_update_frequency', default=5, type=int, help='Frequency for syncing target network [default = 5]')
+    parser.add_argument('--target_update_frequency', default=10, type=int, help='Frequency for syncing target network [default = 10]')
     parser.add_argument('--checkpoint_frequency', default=30, type=int, help='Frequency for creating checkpoints [default = 10]')
-    parser.add_argument('--lr', default=5e-6, type=float, help='Learning rate for the training [default = 1e-4]')
-    parser.add_argument('--batch_size', default=64, type=int, help='Batch size for the training [default = 64]')
+    parser.add_argument('--lr', default=5e-6, type=float, help='Learning rate for the training [default = 5e-6]')
+    parser.add_argument('--batch_size', default=128, type=int, help='Batch size for the training [default = 128]')
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
-    parser.add_argument('--eps', default=0.997, type=float, help='Greedy constant for the training [default = 0.997]')
+    parser.add_argument('--eps', default=1, type=float, help='Greedy constant for the training [default = 1]')
     parser.add_argument('--min_eps', default=0.1, type=float, help='Minimum value for greedy constant [default = 0.1]')
-    parser.add_argument('--buffer_size', default=100000, type=int, help='Buffer size [default = 100000]')
-    parser.add_argument('--episode_length', default=500, type=int, help='Episode length [default=900]')
-    parser.add_argument('--headless', default=False, type=bool, help='Run simulation headless [default=False]')
-    parser.add_argument('--advance_iteration', default=0, type=int, help='By how many iteration extended eps decay [default=0]')
-    parser.add_argument('--warmup', default=0, type=int, help='How many full exploration iterations [default=10]')
+    parser.add_argument('--buffer_size', default=180000, type=int, help='Buffer size [default = 180000]')
+    parser.add_argument('--episode_length', default=900, type=int, help='Episode length [default=900]')
+    parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
+    parser.add_argument('--num_episodes', default=800, type=int, help='How many episodes to plan for (used for decay parameters) [default=800]')
+    parser.add_argument('--warmup', default=30, type=int, help='How many full exploration iterations [default=30]')
     args = parser.parse_args()
     
     # Setup the task 
     SIMULATOR, NETWORK = environments[args.environment]
+    
+    # Determine number of actions available
+    sim = SIMULATOR()
+    args.n_actions = sim.n_actions()
+    del sim
     
     # Create a shared model
     model_shared = NETWORK[0]()
@@ -64,20 +78,25 @@ def main():
     # Queue for data collection
     queue = mp.Queue()
     
+    # Flags
+    warmup_flag = mp.Value(ctypes.c_bool,(args.warmup > 0))
+    flush_flag = mp.Value(ctypes.c_bool,False)
     
-    explorer = mp.Process(target=collect,args=(SIMULATOR,model_shared,accelerator_shared,queue,lock,args))
-    optimiser = mp.Process(target=optimise,args=(model_shared,accelerator_shared,queue,lock,args))
+    # beta value
+    beta = mp.Value(ctypes.c_float,0.0)
+    
+    
+    explorer = mp.Process(target=collect,args=(SIMULATOR,model_shared,accelerator_shared,queue,lock,args,flush_flag,warmup_flag,beta))
+    optimiser = mp.Process(target=optimise,args=(model_shared,accelerator_shared,queue,lock,args,flush_flag,warmup_flag,beta))
     checkpoint = mp.Process(target=cp, args=(model_shared,accelerator_shared, args))
     
-    explorer.start()   
-    optimiser.start()
-    checkpoint.start()
+    processes = [explorer,optimiser,checkpoint]
+    
+    [p.start() for p in processes]
     
     try:
         
-        explorer.join()
-        optimiser.join()
-        checkpoint.join()
+        [p.join() for p in processes]
         
         
     except Exception as e:
@@ -88,9 +107,8 @@ def main():
     finally:
         
         queue.close()
-        explorer.kill()
-        optimiser.kill()
-        checkpoint.kill()
+        
+        [p.kill() for p in processes]
         
         if input('Save model? (y/n): ') in ['y', 'Y', 'yes']:
             print('<< SAVING MODEL >>')

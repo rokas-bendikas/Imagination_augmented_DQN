@@ -21,30 +21,19 @@ class ReplayBufferDQN:
                               {"obs": {"shape": (96,96,6)},
                                "act": {},
                                "rew": {},
-                               "next_obs": {"shape": (96,96,6)},
-                               "terminal": {}})
+                               "terminal": {}},
+                              alpha=0.7,
+                              next_of="obs")
         
         self.length = 0
         self.args = args
         
-
-          
-    def to_buffer(self,data):
+  
         
-        self.memory.add(obs=data[0],
-                                act=data[1],
-                                rew=data[2],
-                                next_obs=data[3],
-                                terminal=data[4])
-                
-        self.length = min(self.args.buffer_size,self.length+1)
-        
-        
-        
-    def sample_batch(self,model,target_net,accelerator,device):
+    def sample_batch(self,model,target_net,accelerator,device,beta):
         
         # Get the batch
-        sample = self.memory.sample(self.args.batch_size)
+        sample = self.memory.sample(self.args.batch_size,beta)
         
         # Structure to fit the network
         s = t.tensor(sample['obs'])

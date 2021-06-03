@@ -1,5 +1,6 @@
 import torch as t
 import torch.nn.functional as f
+from torchvision.utils import save_image,make_grid
 
 
 def calculate_loss_DQN(q_network, target_network, batch, state_rollout, next_state_rollout, hyperparameters,device):
@@ -35,6 +36,9 @@ def calculate_loss_accelerator(model, batch, hyperparameters, device):
     next_state = next_state.to(device)
     
     predicted = model(state,action,hyperparameters,device)
+    
+    save_image(make_grid(predicted[:,0:3,:,:]), 'model1.png')
+    save_image(make_grid(predicted[:,3:6,:,:]), 'model2.png')
     
     loss = f.mse_loss(predicted,next_state)
 
