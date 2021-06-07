@@ -10,7 +10,7 @@ import torch as t
 from device import Device
 import torch.nn.functional as f
 from cpprb import PrioritizedReplayBuffer
-
+from utils import queue_to_data
 
 
 
@@ -21,36 +21,28 @@ class ReplayBufferDQN:
                               {"obs": {"shape": (96,96,6)},
                                "act": {},
                                "rew": {},
-                               "next_obs": {"shape": (96,96,6)},
-                               "terminal": {}})
+                               "terminal": {}},
+                              alpha=0.7,
+                              next_of="obs")
         
         self.length = 0
         self.args = args
         
-
-          
-    def to_buffer(self,data):
+  
         
-        self.memory.add(obs=data[0],
-                                act=data[1],
-                                rew=data[2],
-                                next_obs=data[3],
-                                terminal=data[4])
-                
-        self.length = min(self.args.buffer_size,self.length+1)
+    def sample_batch(self,model,target_net,accelerator,device,beta):
         
+        # Get the batch
+        sample = self.memory.sample(self.args.batch_size,beta)
         
-        
-    def sample_batch(self,model,target_net):
-        
-        sample = self.memory.sample(self.args.batch_size)
-        
+        # Structure to fit the network
         s = t.tensor(sample['obs'])
         a = t.tensor(sample['act'])
         r = t.tensor(sample['rew'])
         ns = t.tensor(sample['next_obs'])
         term = t.tensor(sample['terminal'])
-    
+        
+        # Move to the training device memory
         states = s.permute(0,3,1,2).to(Device.get_device())
         actions = a.type(t.int64).to(Device.get_device())
         rewards = r.to(Device.get_device())
@@ -58,21 +50,57 @@ class ReplayBufferDQN:
         terminals = term.to(Device.get_device())
         
         
-        indexes = sample["indexes"]
-            
         with t.no_grad():
-              
-            target = rewards + terminals * self.args.gamma * target_net(next_states).max()
-            predicted = model(states).gather(1,actions)
+            
+            # Create a rollout for the whole batch 
+            states_rollout = accelerator.rollout(states,self.args,device)
+            next_states_rollout = accelerator.rollout(next_states,self.args,device)
+        
+         
+            # Calculate the loss to determine utility
+            target = rewards + terminals * self.args.gamma * target_net(next_states,next_states_rollout).max()
+            predicted = model(states,states_rollout).gather(1,actions)
                   
             
         new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').cpu().numpy()
-        new_priorities[new_priorities<1] = 1
+        #new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').item()
+        
+        # Get the indices of the samples
+        indexes = sample["indexes"]
             
         self.memory.update_priorities(indexes,new_priorities)
         
         
         return states,actions,rewards,next_states,terminals
+    
+    
+    def load_queue(self,queue,lock,args):
+        
+            for i in range(int(queue.qsize())):
+                
+                
+                # Read from the queue
+                # The critical section begins
+                lock.acquire()
+                data = queue_to_data(queue.get())
+                lock.release()
+                
+                # Convert to numpy for storage
+                state = data[0].numpy()
+                action = data[1].numpy()
+                reward = data[2].numpy()
+                next_state = data[3].numpy()
+                terminal = data[4].numpy()
+                
+                
+                
+                self.memory.add(obs=state,
+                                act=action,
+                                rew=reward,
+                                next_obs=next_state,
+                                terminal=terminal)
+                
+                self.length = min(self.args.buffer_size,self.length+1)
         
         
     def __len__(self):
