@@ -1,11 +1,13 @@
 import argparse
 import os
 import shutil
-from environments import environments
-from network import collect, optimise
+from utils.environments import environments
+from utils.processes import collect, optimise
+import torch as t
+from utils.device import Device
 import torch.multiprocessing as mp
 import ctypes
-from utils import checkpoint as cp
+from utils.utils import checkpoint as cp
 
 
 
@@ -30,12 +32,13 @@ def main():
         os.makedirs('trained')
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
+    if not os.path.exists('plots'):
+        os.makedirs('plots')
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--environment', default='RLBench', help='Environment to use for training [default = RLBench]')
-    parser.add_argument('--save_model', default='./model.pts', help='Path to save the model [default = "/model.pts"]')
-    parser.add_argument('--save_accelerator', default='./accelerator.pts', help='Path to save the model [default = "/accelerator.pts"]')
+    parser.add_argument('--save_model', default='./', help='Path to save the model [default = "./"]')
     parser.add_argument('--load_model', default='', help='Path to load the model [default = '']')
     parser.add_argument('--load_model_acc', default='', help='Path to load the model [default = '']')
     parser.add_argument('--target_update_frequency', default=10, type=int, help='Frequency for syncing target network [default = 10]')
@@ -50,6 +53,9 @@ def main():
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
     parser.add_argument('--num_episodes', default=800, type=int, help='How many episodes to plan for (used for decay parameters) [default=800]')
     parser.add_argument('--warmup', default=30, type=int, help='How many full exploration iterations [default=30]')
+    parser.add_argument('--accelerator', default=True, type=str2bool, help='Use model-based accelerator [default=True]')
+    parser.add_argument('--model', default="DQN", type=str, help='What model to use [default="DQN"]')
+    parser.add_argument('--plot', default=True, type=str2bool, help='Plot the accelerator predictions? [default=False]')
     args = parser.parse_args()
     
     # Setup the task 
@@ -60,17 +66,13 @@ def main():
     args.n_actions = sim.n_actions()
     del sim
     
+    # allocate a device
+    n_gpu = t.cuda.device_count()
+    if n_gpu > 0:
+        Device.set_device(0)
+
     # Create a shared model
-    model_shared = NETWORK[0]()
-    model_shared.load(args.load_model)
-    model_shared.share_memory()
-    model_shared.eval()
-    
-    # Create a shared accelerator
-    accelerator_shared = NETWORK[1]()
-    accelerator_shared.load(args.load_model_acc)
-    accelerator_shared.share_memory()
-    accelerator_shared.eval()
+    model_shared = NETWORK(args,Device.get_device())
     
     # Acquire lock object
     lock = mp.Lock()
@@ -86,9 +88,9 @@ def main():
     beta = mp.Value(ctypes.c_float,0.0)
     
     
-    explorer = mp.Process(target=collect,args=(SIMULATOR,model_shared,accelerator_shared,queue,lock,args,flush_flag,warmup_flag,beta))
-    optimiser = mp.Process(target=optimise,args=(model_shared,accelerator_shared,queue,lock,args,flush_flag,warmup_flag,beta))
-    checkpoint = mp.Process(target=cp, args=(model_shared,accelerator_shared, args))
+    explorer = mp.Process(target=collect,args=(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta))
+    optimiser = mp.Process(target=optimise,args=(model_shared,queue,lock,args,flush_flag,warmup_flag,beta))
+    checkpoint = mp.Process(target=cp, args=(model_shared, args))
     
     processes = [explorer,optimiser,checkpoint]
     
@@ -113,7 +115,6 @@ def main():
         if input('Save model? (y/n): ') in ['y', 'Y', 'yes']:
             print('<< SAVING MODEL >>')
             model_shared.save(args.save_model)
-            accelerator_shared.save(args.save_accelerator)
     
             
 if __name__ == '__main__':

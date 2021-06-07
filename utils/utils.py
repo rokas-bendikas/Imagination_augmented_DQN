@@ -1,14 +1,17 @@
 import torch as t
-from device import Device
+from utils.device import Device
 import time
 from datetime import datetime
+from copy import deepcopy as dc
+from torchvision.utils import save_image,make_grid
 
 
-
-def copy_gradients(target, source):
-    for shared_param, param in zip(target.parameters(), source.parameters()):
-        if param.grad is not None:
-            shared_param._grad = param.grad.clone().cpu()
+def copy_weights(target, source, deepcopy=False):
+    if deepcopy:
+        target.load_state_dict(dc(source.state_dict()))
+    else:
+        target.load_state_dict(source.state_dict())
+        
 
 
 def as_tensor(x, dtype=t.float32):
@@ -39,7 +42,7 @@ def queue_to_data(data):
     return (state,action,reward,next_state,terminal)
 
 
-def checkpoint(shared_model, shared_accelerator, args):
+def checkpoint(shared_model, args):
     try:
         while True:
             time.sleep(args.checkpoint_frequency * 60)
@@ -47,7 +50,27 @@ def checkpoint(shared_model, shared_accelerator, args):
             # Save model
             now = datetime.now().strftime("%d_%m_%H_%M")
             shared_model.save('trained/model_{}.pts'.format(now))
-            shared_accelerator.save('trained/accelerator_{}.pts'.format(now))
 
     except KeyboardInterrupt:
         print('exiting checkpoint')
+        
+        
+def plot_data(batch,predicted):
+    
+    
+    s = batch[0]
+    ns = batch[3]
+    
+    img1 = s[:,0:3,:,:]
+    img2 = s[:,3:6,:,:]
+    
+    img3 = ns[:,0:3,:,:]
+    img4 = ns[:,3:6,:,:]
+    
+   
+    save_image(make_grid(img1), './plots/img1.png')
+    save_image(make_grid(img2), './plots/img2.png')
+    save_image(make_grid(img3), './plots/img3.png')
+    save_image(make_grid(img4), './plots/img4.png')
+    save_image(make_grid(predicted[:,0:3,:,:]), './plots/model1.png')
+    save_image(make_grid(predicted[:,3:6,:,:]), './plots/model2.png')

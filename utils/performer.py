@@ -2,8 +2,8 @@ from copy import deepcopy
 
 import torch as t
 
-from device import Device
-from utils import as_tensor
+from utils.device import Device
+from utils.utils import as_tensor
 
 import numpy as np
 

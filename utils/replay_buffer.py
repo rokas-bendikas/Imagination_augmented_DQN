@@ -7,10 +7,10 @@ Created on Tue May 18 22:32:03 2021
 """
 
 import torch as t
-from device import Device
+from utils.device import Device
 import torch.nn.functional as f
 from cpprb import PrioritizedReplayBuffer
-from utils import queue_to_data
+from utils.utils import queue_to_data
 
 
 
@@ -30,7 +30,7 @@ class ReplayBufferDQN:
         
   
         
-    def sample_batch(self,model,target_net,accelerator,device,beta):
+    def sample_batch(self,model,target_net,device,beta):
         
         # Get the batch
         sample = self.memory.sample(self.args.batch_size,beta)
@@ -52,18 +52,12 @@ class ReplayBufferDQN:
         
         with t.no_grad():
             
-            # Create a rollout for the whole batch 
-            states_rollout = accelerator.rollout(states,self.args,device)
-            next_states_rollout = accelerator.rollout(next_states,self.args,device)
-        
-         
             # Calculate the loss to determine utility
-            target = rewards + terminals * self.args.gamma * target_net(next_states,next_states_rollout).max()
-            predicted = model(states,states_rollout).gather(1,actions)
+            target = rewards + terminals * self.args.gamma * target_net(next_states).max()
+            predicted = model(states).gather(1,actions)
                   
             
         new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').cpu().numpy()
-        #new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').item()
         
         # Get the indices of the samples
         indexes = sample["indexes"]

@@ -35,7 +35,7 @@ def calculate_loss_accelerator(model, batch, hyperparameters, device):
     action = action.to(device)
     next_state = next_state.to(device)
     
-    predicted = model(state,action,hyperparameters,device)
+    predicted = model.accelerator(state,action,hyperparameters,device)
     
     save_image(make_grid(predicted[:,0:3,:,:]), 'model1.png')
     save_image(make_grid(predicted[:,3:6,:,:]), 'model2.png')

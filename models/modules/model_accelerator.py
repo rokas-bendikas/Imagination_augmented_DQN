@@ -8,7 +8,7 @@ Created on Wed May 19 22:27:43 2021
 
 import torch as t
 from models.base import BaseModel
-from models.accelerator_utils import DoubleConv,Down,Up,OutConv
+from models.modules.accelerator_utils import DoubleConv,Down,Up,OutConv
 
 
 

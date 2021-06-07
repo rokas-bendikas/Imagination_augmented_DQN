@@ -6,8 +6,6 @@ from rlbench.observation_config import ObservationConfig, CameraConfig
 from rlbench.tasks import Masters
 
 
-import numpy as np
-
 class RLBench(BaseSimulator):
     def __init__(self,h=False):
         
@@ -23,9 +21,7 @@ class RLBench(BaseSimulator):
         # Environment params
         self.env = Environment(self.action_mode, obs_config=self.obs_config, headless=h)
         
-        # Shared vars
-        self.gripper_open = 1.0
-        
+        # Flags
         self.launched=False
         
 
@@ -42,31 +38,8 @@ class RLBench(BaseSimulator):
         return o
     
 
-    def step(self, a, prev_state):
+    def step(self, action):
         
-        
-        # delta orientation
-        d_quat = np.array([0, 0, 0, 1])
-        
-        # delta position
-        d_pos = np.zeros(3)
-        
-        if a == 6:
-            # gripper state
-            self.gripper_open = abs(self.gripper_open - 1)
-        else:
-            # For positive magnitude
-            if(a%2==0):
-                a = int(a/2)
-                d_pos[a] = 0.02
-                
-            # For negative magnitude
-            else:
-                a = int((a-1)/2)
-                d_pos[a] = -0.02
-        
-        # Forming action as expected by the environment
-        action = np.concatenate([d_pos, d_quat, [self.gripper_open]])
     
         
         s, r, t = self.task.step(action)
