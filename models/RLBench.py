@@ -1,21 +1,23 @@
 import torch as t
+import torch.nn as nn
 import torch.nn.functional as f
 from models.modules.DQN import DQN
 from models.modules.model_accelerator import Accelerator
 from utils.utils import plot_data
 import numpy as np
+from utils.device import Device
 
 
 
 class RLBench_models:
-    def __init__(self,args,device):
+    def __init__(self,args):
         super(RLBench_models,self).__init__()
         
         # Saving args
         self.args = args
         
         # Device to use
-        self.device = device
+        #self.device = device
         
         # Models
         self.models = dict()
@@ -24,11 +26,11 @@ class RLBench_models:
         if self.args.model == "DQN":
             network = DQN(self.args)
             network.load(self.args.load_model)
-            network.to(self.device)
+            #network.to(self.device)
             self.models['model'] = network
             
             # Epsilon linear annealing
-            self.epsilon = self.args.eps
+            #self.epsilon = self.args.eps
             self.epsilon_step = self.args.eps/self.args.num_episodes
             
             # Flags
@@ -40,7 +42,6 @@ class RLBench_models:
         if self.args.accelerator:
             accelerator = Accelerator()
             accelerator.load(self.args.load_model_acc)
-            accelerator.to(self.device)
             self.models['accelerator'] = accelerator
             
             self.optimisers.append(t.optim.Adam(params=self.models['accelerator'].parameters(), lr=5e-5))
@@ -71,7 +72,8 @@ class RLBench_models:
                         warmup_flag.value = False  
                         
                 # Updating decay parameters
-                eps = max(self.epsilon, self.args.min_eps)
+                epsilon = self.args.eps - (itr-self.args.warmup)*self.epsilon_step
+                eps = max(epsilon, self.args.min_eps)
                 
                         
             # Epsilon-greedy policy
@@ -125,7 +127,7 @@ class RLBench_models:
             if self.args.accelerator:
                 
                 # Accelerator 
-                rollout = self.models['accelerator'].rollout(x,self.args,self.device)
+                rollout = self.models['accelerator'].rollout(x,self.args,Device.get_device())
                 out = self.models['model'](x,rollout)
             
             else:
@@ -143,12 +145,14 @@ class RLBench_models:
         
         return [loss_DQN,loss_acc]
     
-    
+    def save(self):
+        [self.models[key].save(self.args.save_model+'/{}.pts'.format(key)) for key in self.models]
     
     
     def to(self,device):
         
         [m.to(device) for m in self.models.values()]
+        
     
     
     def _calculate_loss_model(self, target, batch, args,device):

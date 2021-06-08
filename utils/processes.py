@@ -19,7 +19,6 @@ from utils.replay_buffer import ReplayBufferDQN
 from utils.optimise_model import optimise_model
 from rlbench.task_environment import InvalidActionError
 from pyrep.errors import ConfigurationPathError
-
 t.multiprocessing.set_sharing_strategy('file_system')
         
 
@@ -31,6 +30,8 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
                                     format='%(message)s',
                                     level=logging.DEBUG)
            
+    Device.set_device("cpu")
+    
     simulator = SIMULATOR(args.headless)
     simulator.launch()
              
@@ -115,12 +116,16 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
                                 format='%(message)s',
                                 level=logging.DEBUG)
         
-                 
+        
+        # allocate a device
+        n_gpu = t.cuda.device_count()
+        if n_gpu > 0:
+            Device.set_device(0)
+        
         model_local = deepcopy(model_shared)
         model_local.to(Device.get_device())
         
         target = deepcopy(model_local)
-        target.to(Device.get_device())
         
        
         buffer = ReplayBufferDQN(args)
@@ -133,9 +138,6 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
                     flush_flag.value = False
                 buffer.memory.on_episode_end()
                 
-            
-            loss_accelerator = 0
-            loss_model = 0
             
             buffer.load_queue(queue,lock,args)
             
@@ -159,8 +161,8 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
                 copy_weights(target.models['accelerator'],model_local.models['accelerator'])
             
             # Calculate the loss values
-            loss_model += loss[0].item()
-            loss_accelerator += loss[0].item()
+            loss_model = loss[0].item()
+            loss_accelerator = loss[1].item()
                 
             
             # Log the results

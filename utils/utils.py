@@ -1,3 +1,4 @@
+import os
 import torch as t
 from utils.device import Device
 import time
@@ -42,14 +43,16 @@ def queue_to_data(data):
     return (state,action,reward,next_state,terminal)
 
 
-def checkpoint(shared_model, args):
+def checkpoint(shared_model, args,warmup_flag):
     try:
         while True:
             time.sleep(args.checkpoint_frequency * 60)
-
-            # Save model
-            now = datetime.now().strftime("%d_%m_%H_%M")
-            shared_model.save('trained/model_{}.pts'.format(now))
+            
+            if not warmup_flag.value:
+                # Save model
+                now = datetime.now().strftime("%d_%m_%H_%M")
+                
+                [shared_model.models[key].save(args.save_model+'/{}_{}.pts'.format(key,now)) for key in shared_model.models]
 
     except KeyboardInterrupt:
         print('exiting checkpoint')
