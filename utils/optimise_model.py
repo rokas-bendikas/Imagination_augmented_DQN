@@ -10,6 +10,7 @@ from utils.utils import copy_weights
 
 
 def optimise_model(shared_model, local_model, loss, lock):
+    
     # Delete the gradients
     [o.zero_grad() for o in local_model.optimisers]
     

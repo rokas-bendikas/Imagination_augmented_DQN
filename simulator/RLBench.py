@@ -37,17 +37,12 @@ class RLBench(BaseSimulator):
         
         return o
     
-
     def step(self, action):
-        
-    
         
         s, r, t = self.task.step(action)
             
           
         return s, r, t
-    
-    
     
     @staticmethod
     def n_actions():

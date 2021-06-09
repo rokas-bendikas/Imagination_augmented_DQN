@@ -1,4 +1,3 @@
-import os
 import torch as t
 from utils.device import Device
 import time
@@ -23,7 +22,7 @@ def as_tensor(x, dtype=t.float32):
 def data_to_queue(state, action, reward, next_state, terminal):
     
     state = as_tensor(state).unsqueeze(3)
-    action = as_tensor([action], t.int64).unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
+    action = as_tensor([action], t.long).unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
     reward = as_tensor([reward]).unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
     next_state = as_tensor(next_state).unsqueeze(3)
     terminal = as_tensor([terminal],t.bool).unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
@@ -62,7 +61,7 @@ def plot_data(batch,predicted):
     
     
     s = batch[0]
-    ns = batch[3]
+    ns = batch[2]
     
     img1 = s[:,0:3,:,:]
     img2 = s[:,3:6,:,:]

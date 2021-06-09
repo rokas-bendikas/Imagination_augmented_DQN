@@ -23,13 +23,14 @@ t.multiprocessing.set_sharing_strategy('file_system')
         
 
 def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
-    writer = SummaryWriter('runs/col')
+    
+    writer = SummaryWriter('tensorboard/col')
             
     logging.basicConfig(filename='logs/collector.log',
                                     filemode='w',
                                     format='%(message)s',
                                     level=logging.DEBUG)
-           
+          
     Device.set_device("cpu")
     
     simulator = SIMULATOR(args.headless)
@@ -42,9 +43,16 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
     beta_step = (1 - beta.value)/args.num_episodes
     
     
-    # Epsilon linear annealing
-    epsilon = args.eps
-    epsilon_step = args.eps/args.num_episodes
+    
+    ###############################
+    ############ DQN ##############
+    ###############################
+    
+    if args.model == "DQN":
+    
+        # Epsilon linear annealing
+        epsilon = args.eps
+        epsilon_step = args.eps/args.num_episodes
    
 
     for itr in tqdm(count(), position=0, desc='collector'):
@@ -54,6 +62,8 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
         state_processed = np.concatenate((state.front_rgb,state.wrist_rgb),axis=2)
                 
         episode_reward = 0
+        
+        #print(next(model_shared.models['model'].parameters()).device)
                 
         for e in count():
             
@@ -109,7 +119,7 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
     
 def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
         
-        writer = SummaryWriter('runs/opt')
+        writer = SummaryWriter('tensorboard/opt')
         
         logging.basicConfig(filename='logs/optimiser.log',
                                 filemode='w',
@@ -133,6 +143,8 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
         
         for itr in tqdm(count(), position=1, desc='optimiser'):
             
+            batches = list()
+            
             if flush_flag.value:
                 with flush_flag.get_lock():
                     flush_flag.value = False
@@ -142,16 +154,19 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
             buffer.load_queue(queue,lock,args)
             
             while ((len(buffer) < args.batch_size) or warmup_flag.value):
-                buffer.load_queue(queue,lock,args)
+                batch_accelerator = buffer.load_queue(queue,lock,args)
                 
             
                 
             # Sample a data point from dataset
-            batch = buffer.sample_batch(model_local,target,Device.get_device(),beta.value)
+            batches.append(buffer.sample_batch(model_local,target,Device.get_device(),beta.value))
+            
+            if args.accelerator:
+                batches.append(batch_accelerator)
             
             
             # Calculate loss for the batch
-            loss = model_local.calculate_loss(batch,target, args, Device.get_device())
+            loss = model_local.calculate_loss(batches,target, Device.get_device())
             
             # Updated the shared model
             optimise_model(model_shared,model_local,loss,lock)
@@ -162,7 +177,13 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
             
             # Calculate the loss values
             loss_model = loss[0].item()
-            loss_accelerator = loss[1].item()
+            
+            if args.accelerator:
+                loss_accelerator = loss[1].item()
+            else:
+                loss_accelerator = 0
+                
+                
                 
             
             # Log the results

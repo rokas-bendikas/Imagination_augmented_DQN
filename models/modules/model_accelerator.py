@@ -34,19 +34,43 @@ class Accelerator(BaseModel):
         
         
              
+        
+    # Predict succesor states for every action possible
+    def forward(self, state, args, device):
+        
+        if(len(state.shape)==3):
+            state = state.unsqueeze(0).permute(0,3,1,2)
+    
+        #state = state.to(device)
+        
+        # Pre-allocate rollout, shape [batch_size,num_channels*num_actions,img_height,img_width]
+        rollout = t.empty(state.shape[0],args.n_actions*6,state.shape[2],state.shape[3],device=device)
+        
+        # For every action create predict output
+        for action in range(args.n_actions):
+            
+            with t.no_grad():
+                out = self.predict_single_action(state, action, args, device)
+            
+            rollout[:,6*action:6*(action+1),:,:]  = out
+            
+            
+        return rollout
     
     # Predict the next state representation given a single action
-    def forward(self,state,action,args,device):
+    def predict_single_action(self,state,action,args,device):
         
         if(len(state.shape)==3):
             state = state.unsqueeze(0).permute(0,3,1,2)
         
+        
         # Create a tiled one-hot action representation, shape [batch_size,num_actions,img_height,img_width]
         action_tiled = t.zeros(state.shape[0],args.n_actions,state.shape[2],state.shape[3],device=device)
-        action_tiled[:,action,:,:] = 1
+        action_tiled[:,int(action),:,:] = 1
         
         # Stack one-hot tiled tensors on top of the input image
         state_action = t.cat((state,action_tiled),1)
+        
         
         # Pass through the conv-net
         x1 = self.inc(state_action)
@@ -65,28 +89,6 @@ class Accelerator(BaseModel):
     
     
     
-    
-    # Predict succesor states for every action possible
-    def rollout(self, state, args, device):
-        
-        if(len(state.shape)==3):
-            state = state.unsqueeze(0).permute(0,3,1,2)
-    
-        state = state.to(device)
-        
-        # Pre-allocate rollout, shape [batch_size,num_channels*num_actions,img_height,img_width]
-        rollout = t.empty(state.shape[0],args.n_actions*6,state.shape[2],state.shape[3],device=device)
-        
-        # For every action create predict output
-        for action in range(args.n_actions):
-            
-            with t.no_grad():
-                out = self.forward(state, action, args, device)
-            
-            rollout[:,6*action:6*(action+1),:,:]  = out
-            
-            
-        return rollout
             
         
         

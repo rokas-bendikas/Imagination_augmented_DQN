@@ -10,9 +10,9 @@ import torch as t
 import torch.nn as nn
 from models.base import BaseModel
 
-class DQN(BaseModel):
+class DQN_model(BaseModel):
     def __init__(self,args):
-        super(DQN,self).__init__()
+        super(DQN_model,self).__init__()
         
         self.args = args
         
