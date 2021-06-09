@@ -1,8 +1,8 @@
 /checkpoints
 /logs
-/runs
 /trained
 **/__pycache__
 *.pt
 *.png
 /plots
+/tensorboard
