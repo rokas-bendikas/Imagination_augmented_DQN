@@ -14,18 +14,18 @@ def copy_weights(target, source, deepcopy=False):
         
 
 
-def as_tensor(x, dtype=t.float32):
-    return t.tensor(x, dtype=dtype, device=Device.get_device(),requires_grad=False)
+def as_tensor(x, dtype=t.float32,device=Device.get_device()):
+    return t.tensor(x, dtype=dtype, device=device,requires_grad=False)
 
 
     
 def data_to_queue(state, action, reward, next_state, terminal):
     
-    state = as_tensor(state).unsqueeze(3)
-    action = as_tensor([action], t.long).unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
-    reward = as_tensor([reward]).unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
-    next_state = as_tensor(next_state).unsqueeze(3)
-    terminal = as_tensor([terminal],t.bool).unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
+    state = as_tensor(state,device="cpu").unsqueeze(3)
+    action = as_tensor([action], t.long,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
+    reward = as_tensor([reward],device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
+    next_state = as_tensor(next_state,device="cpu").unsqueeze(3)
+    terminal = as_tensor([terminal],t.bool,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
     
     data = t.cat((state,action,reward,next_state,terminal),dim=3)
     
@@ -58,7 +58,6 @@ def checkpoint(shared_model, args,warmup_flag):
         
         
 def plot_data(batch,predicted):
-    
     
     s = batch[0]
     ns = batch[2]

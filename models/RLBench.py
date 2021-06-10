@@ -50,7 +50,7 @@ class RLBench_models:
     
     
     # Converting network outputs to discrete actions:
-    def get_action(self,state,itr,simulator,warmup_flag,writer):
+    def get_action(self,state,itr,warmup_flag,writer):
         
         ###############################
         ############ DQN ##############
@@ -78,9 +78,9 @@ class RLBench_models:
                         
             # Epsilon-greedy policy
             if np.random.RandomState().rand() < eps:
-                action_discrete = as_tensor(np.random.RandomState().randint(simulator.n_actions()),t.long)
+                action_discrete = np.random.RandomState().randint(self.args.n_actions)
             else:
-                action_discrete = self.forward(state).argmax()
+                action_discrete = self.forward(state).argmax().item()
     
               
             # Convert DQN discrete action to continuous
@@ -159,6 +159,12 @@ class RLBench_models:
         
         return losses
     
+    def calculate_loss_accelerator(self,batch,device):
+        
+        loss = self._calculate_loss_accelerator(batch,device)
+        
+        return loss
+    
     def save(self):
         
         # Save all the model registered
@@ -175,13 +181,6 @@ class RLBench_models:
     def _calculate_loss_model(self, target, batch,device):
     
         state, action, reward, next_state, terminal = batch
-        
-        # Moving data to gpu for network pass
-        state = state.to(device)
-        reward = reward.to(device)
-        next_state = next_state.to(device)
-        terminal = terminal.to(device)
-        action = action.to(device)
         
         
         ###############################
@@ -229,13 +228,9 @@ class RLBench_models:
         
 
     def _calculate_loss_accelerator(self, batch, device):
+        
     
-        state, action, next_state = zip(*batch)
-        
-        state = t.stack(state).permute(0,3,1,2)
-        action = t.stack(action)
-        next_state = t.stack(next_state).permute(0,3,1,2)
-        
+        state, action, next_state = batch
         
         predicted = self.models['accelerator'].predict_single_action(state,action,self.args,device)
         
@@ -255,7 +250,6 @@ class RLBench_models:
         
         network = DQN(self.args)
         network.load(self.args.load_model)
-        #network.to(self.device)
         self.models['model'] = network
         
         # Epsilon linear annealing

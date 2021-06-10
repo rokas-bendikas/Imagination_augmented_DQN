@@ -13,6 +13,7 @@ import torch as t
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from utils.device import Device
+import time
 import numpy as np
 from utils.utils import as_tensor,data_to_queue,copy_weights
 from utils.replay_buffer import ReplayBufferDQN
@@ -22,7 +23,7 @@ from pyrep.errors import ConfigurationPathError
 t.multiprocessing.set_sharing_strategy('file_system')
         
 
-def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
+def collect(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
     
     writer = SummaryWriter('tensorboard/col')
             
@@ -31,9 +32,11 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
                                     format='%(message)s',
                                     level=logging.DEBUG)
           
-    Device.set_device("cpu")
+            
+    n_gpu = t.cuda.device_count()
+    if n_gpu > 0:
+        Device.set_device(1 % n_gpu)
     
-    simulator = SIMULATOR(args.headless)
     simulator.launch()
              
     total_reward = 0
@@ -41,6 +44,9 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
     # Beta for IS  linear annealing
     beta.value = 0.4
     beta_step = (1 - beta.value)/args.num_episodes
+    
+    model_local = deepcopy(model_shared)
+    model_local.to(Device.get_device())
     
     
     
@@ -56,18 +62,21 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
    
 
     for itr in tqdm(count(), position=0, desc='collector'):
-                
+        
+        [copy_weights(local,shared) for shared,local in zip(model_shared.models.values(),model_local.models.values())]
+        
         state = simulator.reset()
                  
         state_processed = np.concatenate((state.front_rgb,state.wrist_rgb),axis=2)
                 
         episode_reward = 0
         
-        #print(next(model_shared.models['model'].parameters()).device)
+        #print("collector: {}".format(next(model_local.models['model'].parameters()).device))
                 
         for e in count():
             
-            action,action_discrete = model_shared.get_action(as_tensor(state_processed),itr,simulator,warmup_flag,writer)
+            
+            action,action_discrete = model_local.get_action(as_tensor(state_processed,device=Device.get_device()),itr,warmup_flag,writer)
                 
             # Agent step 
             try:
@@ -76,6 +85,10 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
             # Handling failure in planning and wrong action for inverse Jacobian
             except (ConfigurationPathError,InvalidActionError):
                 continue
+            
+            except Exception as e:
+                print(e)
+                break
             
              
             # Concainating diffrent cameras
@@ -117,7 +130,7 @@ def collect(SIMULATOR,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
             
             
     
-def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
+def optimise(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
         
         writer = SummaryWriter('tensorboard/opt')
         
@@ -127,10 +140,9 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
                                 level=logging.DEBUG)
         
         
-        # allocate a device
         n_gpu = t.cuda.device_count()
         if n_gpu > 0:
-            Device.set_device(0)
+            Device.set_device(0 % n_gpu)
         
         model_local = deepcopy(model_shared)
         model_local.to(Device.get_device())
@@ -140,30 +152,47 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
        
         buffer = ReplayBufferDQN(args)
         
+        #print("optimiser: {}".format(next(model_local.models['model'].parameters()).device))
         
         for itr in tqdm(count(), position=1, desc='optimiser'):
             
-            batches = list()
-            
+            # Flushing the buffer
             if flush_flag.value:
                 with flush_flag.get_lock():
                     flush_flag.value = False
                 buffer.memory.on_episode_end()
-                
             
-            buffer.load_queue(queue,lock,args)
+            # Loading the data from the queue
+            buffer.load_queue(simulator,queue,lock,args)
             
-            while ((len(buffer) < args.batch_size) or warmup_flag.value):
-                batch_accelerator = buffer.load_queue(queue,lock,args)
+            # During warmup or whilst the buffer is too small
+            if ((len(buffer) < args.batch_size) or warmup_flag.value):
                 
+                # Loading the data from the queue
+                buffer.load_queue(simulator,queue,lock,args)
+                
+                # Training the accelerator
+                if args.accelerator:
+                    batch_accelerator = buffer.sample_batch_accelerator(Device.get_device())
+                    loss = model_local.calculate_loss_accelerator(batch_accelerator, Device.get_device())
+                    model_local.optimisers[1].zero_grad()
+                    loss.backward()
+                    model_local.optimisers[1].step()
+                    
+                    # Accelerator logs
+                    logging.debug('DQN loss: {:.6f}, Accelerator loss: {:.6f}, Buffer size: {}, Beta value: {:.6f}'.format(0, loss.item(), len(buffer),beta.value))
+                    writer.add_scalar('DQN loss', 0,itr)
+                    writer.add_scalar('Accelerator loss', loss.item(),itr)
+                    writer.add_scalar('Beta value', beta.value,itr)
+                    
+                # Avoid high number of iteration when training without the accelerator
+                time.sleep(1)
+                continue
+                    
             
                 
             # Sample a data point from dataset
-            batches.append(buffer.sample_batch(model_local,target,Device.get_device(),beta.value))
-            
-            if args.accelerator:
-                batches.append(batch_accelerator)
-            
+            batches = buffer.sample_batch(model_local,target,Device.get_device(),beta.value)
             
             # Calculate loss for the batch
             loss = model_local.calculate_loss(batches,target, Device.get_device())
@@ -183,9 +212,7 @@ def optimise(model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
             else:
                 loss_accelerator = 0
                 
-                
-                
-            
+              
             # Log the results
             logging.debug('DQN loss: {:.6f}, Accelerator loss: {:.6f}, Buffer size: {}, Beta value: {:.6f}'.format(loss_model, loss_accelerator, len(buffer),beta.value))
             writer.add_scalar('DQN loss', loss_model,itr)

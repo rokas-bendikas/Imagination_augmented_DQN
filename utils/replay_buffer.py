@@ -7,9 +7,9 @@ Created on Tue May 18 22:32:03 2021
 """
 
 import torch as t
-from utils.device import Device
 import torch.nn.functional as f
-from cpprb import PrioritizedReplayBuffer
+import time
+from cpprb import PrioritizedReplayBuffer,ReplayBuffer
 from utils.utils import queue_to_data,as_tensor
 
 
@@ -25,6 +25,12 @@ class ReplayBufferDQN:
                               alpha=0.7,
                               next_of="obs")
         
+        if args.accelerator:
+            self.accelerator_memory = ReplayBuffer(1000,
+                              {"obs": {"shape": (96,96,6)},
+                               "act": {}},
+                              next_of="obs")
+        
         self.length = 0
         self.args = args
         
@@ -32,31 +38,19 @@ class ReplayBufferDQN:
         
     def sample_batch(self,model,target_net,device,beta):
         
-        # Get the batch
+        batch = list()
+        
+        # Get the priotatized batch
         sample = self.memory.sample(self.args.batch_size,beta)
         
-        """
         # Structure to fit the network
-        s = t.tensor(sample['obs'])
-        a = t.tensor(sample['act'])
-        r = t.tensor(sample['rew'])
-        ns = t.tensor(sample['next_obs'])
-        term = t.tensor(sample['terminal'])
+        states = as_tensor(sample['obs'],device=device).permute(0,3,1,2)
+        actions = as_tensor(sample['act'],t.long,device=device)
+        rewards = as_tensor(sample['rew'],device=device)
+        next_states = as_tensor(sample['next_obs'],device=device).permute(0,3,1,2)
+        terminals = as_tensor(sample['terminal'],device=device)
         
-        # Move to the training device memory
-        states = s.permute(0,3,1,2).to(Device.get_device())
-        actions = a.type(t.int64).to(Device.get_device())
-        rewards = r.to(Device.get_device())
-        next_states = ns.permute(0,3,1,2).to(Device.get_device())
-        terminals = term.to(Device.get_device())
-        """
-        
-        # Structure to fit the network
-        states = as_tensor(sample['obs']).permute(0,3,1,2)
-        actions = as_tensor(sample['act'],t.long)
-        rewards = as_tensor(sample['rew'])
-        next_states = as_tensor(sample['next_obs']).permute(0,3,1,2)
-        terminals = as_tensor(sample['terminal'])
+        batch.append([states,actions,rewards,next_states,terminals])
         
         
         with t.no_grad(): 
@@ -73,26 +67,67 @@ class ReplayBufferDQN:
         self.memory.update_priorities(indexes,new_priorities)
         
         
-        return states,actions,rewards,next_states,terminals
+        if self.args.accelerator:
+            # Get accelerator batch
+            sample = self.accelerator_memory.sample(self.args.batch_size)
+            
+            # Structure to fit the network
+            states = as_tensor(sample['obs'],device=device).permute(0,3,1,2)
+            actions = as_tensor(sample['act'],t.long,device=device)
+            next_states = as_tensor(sample['next_obs'],device=device).permute(0,3,1,2)
+            
+            batch.append([states,actions,next_states])
+        
+        
+        return batch
+    
+    def sample_batch_accelerator(self,device):
+        
+        
+        # Get accelerator batch
+        sample = self.accelerator_memory.sample(self.args.batch_size)
+        
+        # Structure to fit the network
+        states = as_tensor(sample['obs'],device=device).permute(0,3,1,2)
+        actions = as_tensor(sample['act'],t.long,device=device)
+        next_states = as_tensor(sample['next_obs'],device=device).permute(0,3,1,2)
+        
+        return [states,actions,next_states]
     
     
-    def load_queue(self,queue,lock,args):
+    def load_queue(self,simulator,queue,lock,args):
         
-        batch_accelerator = None
+        """
+        empty_count = 0
         
-        if args.accelerator:
-            batch_accelerator = list()
+        
+        lock.acquire()
+        simulator.reset()
+        lock.release()
+        
+        
+        # Limiting number of updates based on simulator speed
+        while(int(queue.qsize()) < args.batch_size / 8):
+            
+            time.sleep(0.1)
+            
+            if (empty_count >= 5):
+                simulator.reset()
+                empty_count = 0
+                
+            elif (int(queue.qsize())==0):
+                empty_count+=1
+
+        """
         
         for i in range(int(queue.qsize())):
             
-            
             # Read from the queue
-            # The critical section begins
             lock.acquire()
             data = queue_to_data(queue.get())
             lock.release()
             
-            # Convert to numpy for storage
+            # Expand
             state = data[0]
             action = data[1]
             reward = data[2]
@@ -100,20 +135,21 @@ class ReplayBufferDQN:
             terminal = data[4]
             
             
-            
-            if batch_accelerator is not None:
-                batch_accelerator.append([state,action,next_state])
-            
-            
+            # Store for replay buffer
             self.memory.add(obs=state,
                             act=action,
                             rew=reward,
                             next_obs=next_state,
                             terminal=terminal)
             
+            # Set the buffer current length
             self.length = min(self.args.buffer_size,self.length+1)
-        
-        return batch_accelerator
+            
+            # Update accelerator buffer
+            if args.accelerator:
+                self.accelerator_memory.add(obs=state,
+                            act=action,
+                            next_obs=next_state)
         
         
     def __len__(self):

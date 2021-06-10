@@ -9,6 +9,7 @@ Created on Wed May 19 22:27:43 2021
 import torch as t
 from models.base import BaseModel
 from models.modules.accelerator_utils import DoubleConv,Down,Up,OutConv
+from utils.utils import as_tensor
 
 
 
@@ -66,7 +67,8 @@ class Accelerator(BaseModel):
         
         # Create a tiled one-hot action representation, shape [batch_size,num_actions,img_height,img_width]
         action_tiled = t.zeros(state.shape[0],args.n_actions,state.shape[2],state.shape[3],device=device)
-        action_tiled[:,int(action),:,:] = 1
+        
+        action_tiled[:,action,:,:] = 1
         
         # Stack one-hot tiled tensors on top of the input image
         state_action = t.cat((state,action_tiled),1)
