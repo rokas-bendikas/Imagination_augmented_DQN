@@ -42,7 +42,7 @@ def queue_to_data(data):
     return (state,action,reward,next_state,terminal)
 
 
-def checkpoint(shared_model, args,warmup_flag):
+def checkpoint(shared_model, args,warmup_flag,lock):
     try:
         while True:
             time.sleep(args.checkpoint_frequency * 60)
@@ -51,7 +51,9 @@ def checkpoint(shared_model, args,warmup_flag):
                 # Save model
                 now = datetime.now().strftime("%d_%m_%H_%M")
                 
+                lock.acquire()
                 [shared_model.models[key].save(args.save_model+'/{}_{}.pts'.format(key,now)) for key in shared_model.models]
+                lock.release()
 
     except KeyboardInterrupt:
         print('exiting checkpoint')

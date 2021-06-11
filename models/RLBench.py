@@ -3,7 +3,7 @@ import torch.nn.functional as f
 from models.modules.dqn.DQN import DQN_model as DQN
 from models.modules.a2c.A2C import A2C_model as A2C
 from models.modules.model_accelerator import Accelerator 
-from utils.utils import plot_data, as_tensor
+from utils.utils import plot_data
 import numpy as np
 from utils.device import Device
 
@@ -21,10 +21,6 @@ class RLBench_models:
         
         # Used optimisers
         self.optimisers = list()
-        
-        ###############################
-        ############ DQN ##############
-        ###############################
         
         # Initialise DQN model
         if self.args.model == "DQN":
@@ -50,7 +46,7 @@ class RLBench_models:
     
     
     # Converting network outputs to discrete actions:
-    def get_action(self,state,itr,warmup_flag,writer):
+    def get_action(self,state,itr=None,warmup_flag=None,writer=None):
         
         ###############################
         ############ DQN ##############
@@ -84,10 +80,12 @@ class RLBench_models:
     
               
             # Convert DQN discrete action to continuous
-            action = self._DQN_discrete_to_continous_action(action_discrete)
+            action = self._action_discrete_to_continous(action_discrete)
             
             # Tensorboard logs for epsilon
             writer.add_scalar('Epsilon value',eps,itr)
+            
+            out = [action,action_discrete]
             
             
         ###############################
@@ -96,10 +94,23 @@ class RLBench_models:
         
         # Epsilon-greedy for DQN
         elif self.args.model == "A2C":
-            raise NotImplementedError
             
-                
-        return action,action_discrete
+            value,policy = self.forward(state)
+            
+            value = value.detach().numpy()[0,0]
+            dist = policy.detach().numpy() 
+
+            action_discrete = np.random.choice(self.args.n_actions, p=np.squeeze(dist))
+            log_prob = t.log(policy.squeeze(0)[action_discrete])
+            entropy = -np.sum(np.mean(dist) * np.log(dist))
+            
+            # Convert discrete action to continuous
+            action = self._action_discrete_to_continous(action_discrete)
+            
+        
+            out = [action,action_discrete,log_prob,entropy,value]
+               
+        return out
             
     
     
@@ -110,48 +121,27 @@ class RLBench_models:
             x = x.unsqueeze(0).permute(0,3,1,2)
         
         
-        ###############################
-        ############ DQN ##############
-        ###############################
-        
-        # If using DQN model
-        if self.args.model == "DQN":
-        
-            # If using accelerator module
-            if self.args.accelerator:
-                
-                # Accelerator 
-                rollout = self.models['accelerator'](x,self.args,Device.get_device())
-                out = self.models['model'](x,rollout)
+        # If using accelerator module
+        if self.args.accelerator:
             
-            else:
-                out = self.models['model'](x) 
+            # Accelerator 
+            rollout = self.models['accelerator'](x,self.args,Device.get_device())
+            out = self.models['model'](x,rollout)
         
+        else:
+            out = self.models['model'](x) 
         
-        ###############################
-        ############ A2C ##############
-        ###############################
-        
-        # Using A2C model
-        elif self.args.model == "A2C":
-            
-            # If using accelerator module
-            if self.args.accelerator:
-                
-                # Accelerator 
-                rollout = self.models['accelerator'](x,self.args,Device.get_device())
-                out = self.models['model'](x,rollout)
-                          
+                     
         return out
     
     
     
-    def calculate_loss(self,batches,target,device):
+    def calculate_loss(self,batches,device,target=None):
         
         losses = list()
         
         # Loss of the main model
-        [losses.append(loss) for loss in self._calculate_loss_model(target, batches[0],device)]
+        [losses.append(loss) for loss in self._calculate_loss_model(batches[0],device,target)]
         
         # Loss of the accelerator
         if self.args.accelerator:
@@ -178,16 +168,15 @@ class RLBench_models:
         
     
     
-    def _calculate_loss_model(self, target, batch,device):
+    def _calculate_loss_model(self, batch,device,target=None):
     
-        state, action, reward, next_state, terminal = batch
-        
-        
         ###############################
         ############ DQN ##############
         ###############################
         
         if self.args.model == "DQN":
+            
+            state, action, reward, next_state, terminal = batch
         
             # Target value
             with t.no_grad():
@@ -206,24 +195,28 @@ class RLBench_models:
         # Using A2C model
         elif self.args.model == "A2C":
             
-            policy_state,value_state = self(state)
-            policy_next_state,value_next_state = self(next_state)
+            values,rewards,Qval,log_probs,entropy_term = batch
             
-            # Get critic loss
-            advantage = reward + (1.0 - terminal) * self.args.gamma * value_next_state - value_state
-            critic_loss = advantage.pow(2)
+            # compute Q values
+            Qvals = np.zeros_like(values)
+            for i in reversed(range(len(rewards))):
+                Qval = rewards[i] + self.args.gamma * Qval
+                Qvals[i] = Qval
+                
+                
+            #update actor critic
+            values = t.FloatTensor(values)
+            Qvals = t.FloatTensor(Qvals)
+            log_probs = t.stack(log_probs)
             
-            # Get actor loss
-            dist = t.distributions.Categorical(probs=policy_state)
-            action = dist.sample()
+            advantage = Qvals - values
+            actor_loss = (-log_probs * advantage).mean()
+            critic_loss = 0.5 * advantage.pow(2).mean()
+            ac_loss = actor_loss + critic_loss + 0.001 * entropy_term
             
-            actor_loss = -dist.log_prob(action) * advantage.detach()
-            
-            out = [critic_loss,actor_loss]
-            
+            out = [ac_loss]
             
             
-    
         return out
         
 
@@ -263,7 +256,46 @@ class RLBench_models:
         self.optimisers.append(t.optim.SGD(params=self.models['model'].parameters(), lr=self.args.lr,momentum=0.9))
         
     
-    def _DQN_discrete_to_continous_action(self,a):
+    
+    ##############################################################################################
+    ###################################### A2C UTILS #############################################
+    ##############################################################################################
+    
+    def _init_A2C(self):
+        
+        network = A2C(self.args)
+        network.load(self.args.load_model)
+        self.models['model'] = network
+        
+        # Flags
+        self.gripper_open = 1.0
+        
+        # Optimiser
+        self.optimisers.append(t.optim.Adam(params=self.models['model'].parameters(), lr=self.args.lr))
+        
+    
+    
+    
+    ##############################################################################################
+    #################################### Accelerator UTILS #######################################
+    ##############################################################################################
+    
+    
+    def _init_Accelerator(self)->None:
+        accelerator = Accelerator()
+        accelerator.load(self.args.load_model_acc)
+        self.models['accelerator'] = accelerator
+        self.optimisers.append(t.optim.Adam(params=self.models['accelerator'].parameters(), lr=5e-5))
+        
+        
+        
+    ##############################################################################################
+    ###################################### General UTILS #########################################
+    ##############################################################################################
+        
+        
+        
+    def _action_discrete_to_continous(self,a):
         
         # delta orientation
         d_quat = np.array([0, 0, 0, 1])
@@ -289,34 +321,3 @@ class RLBench_models:
         action = np.concatenate([d_pos, d_quat, [self.gripper_open]])
         
         return action
-    
-    
-    ##############################################################################################
-    ###################################### A2C UTILS #############################################
-    ##############################################################################################
-    
-    def _init_A2C(self):
-        
-        network = A2C(self.args)
-        network.load(self.args.load_model)
-        self.models['model'] = network
-        
-        # Flags
-        self.gripper_open = 1.0
-        
-        # Optimiser
-        self.optimisers.append(t.optim.SGD(params=self.models['model'].parameters(), lr=self.args.lr,momentum=0.9))
-        
-    
-    
-    
-    ##############################################################################################
-    #################################### Accelerator UTILS #######################################
-    ##############################################################################################
-    
-    
-    def _init_Accelerator(self)->None:
-        accelerator = Accelerator()
-        accelerator.load(self.args.load_model_acc)
-        self.models['accelerator'] = accelerator
-        self.optimisers.append(t.optim.Adam(params=self.models['accelerator'].parameters(), lr=5e-5))

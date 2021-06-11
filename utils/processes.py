@@ -23,7 +23,7 @@ from pyrep.errors import ConfigurationPathError
 t.multiprocessing.set_sharing_strategy('file_system')
         
 
-def collect(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
+def collect_DQN(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
     
     writer = SummaryWriter('tensorboard/col')
             
@@ -130,7 +130,7 @@ def collect(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
             
             
     
-def optimise(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
+def optimise_DQN(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta):
         
         writer = SummaryWriter('tensorboard/opt')
         
@@ -195,7 +195,7 @@ def optimise(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta)
             batches = buffer.sample_batch(model_local,target,Device.get_device(),beta.value)
             
             # Calculate loss for the batch
-            loss = model_local.calculate_loss(batches,target, Device.get_device())
+            loss = model_local.calculate_loss(batches,Device.get_device(),target)
             
             # Updated the shared model
             optimise_model(model_shared,model_local,loss,lock)
@@ -226,7 +226,105 @@ def optimise(simulator,model_shared,queue,lock,args,flush_flag,warmup_flag,beta)
             
         writer.close()
     
-        
+     
+    
+    
+def train_A2C(simulator,model_shared,lock,args):
+    
+    writer = SummaryWriter('tensorboard/A2C')
             
+    logging.basicConfig(filename='logs/A2C.log',
+                                    filemode='w',
+                                    format='%(message)s',
+                                    level=logging.DEBUG)
+          
+            
+    n_gpu = t.cuda.device_count()
+    if n_gpu > 0:
+        Device.set_device(1 % n_gpu)
+    
+    simulator.launch()
+             
+    
+    model_local = deepcopy(model_shared)
+    model_local.to(Device.get_device())
+    
+    
+    entropy_term = 0
+    
+    total_reward = 0
+
+    for itr in tqdm(count(), position=0, desc='collector'):
+                
+        log_probs = []
+        
+        values = []
+        
+        rewards = []
+        
+        episode_reward = 0
+        
+        state = simulator.reset()
+                 
+        state_processed = np.concatenate((state.front_rgb,state.wrist_rgb),axis=2)
+        
+        for e in range(args.episode_length):
+            
+            
+            action,action_discrete,log_prob,entropy,value = model_local.get_action(as_tensor(state_processed,device=Device.get_device()))
+                
+            # Agent step 
+            try:
+                next_state, reward, terminal = simulator.step(action)
+                
+            # Handling failure in planning and wrong action for inverse Jacobian
+            except (ConfigurationPathError,InvalidActionError):
+                continue
+            
+            except Exception as e:
+                print(e)
+                break
+            
+             
+            # Concainating diffrent cameras
+            next_state_processed = np.concatenate((next_state.front_rgb,next_state.wrist_rgb),axis=2)
+            
+            state_processed = next_state_processed
+            
+            rewards.append(reward)
+            values.append(value)
+            log_probs.append(log_prob)
+            entropy_term += entropy
+            
+            episode_reward += reward
+            
+            
+            
+            # Early termination conditions
+            if (terminal or (e == args.episode_length - 1)):
+                
+                Qval, _ = model_local.models['model'].forward(as_tensor(next_state_processed,device=Device.get_device()))
+                Qval = Qval.detach().numpy()[0,0]
+                break
+        
+        total_reward += episode_reward
+        
+        batch = [values,rewards,Qval,log_probs,entropy_term] 
+        
+        loss = model_local.calculate_loss([batch],Device.get_device())
+        
+        
+        # Updated the shared model
+        optimise_model(model_shared,model_local,loss,lock)
+        
+        # Log the results
+        logging.debug('Episode reward: {:.2f}, A2C loss: {:.6f}, Accelerator loss: {:.6f}'.format(episode_reward,loss[0].item(),0))
+        writer.add_scalar('Episode reward', episode_reward, itr)
+        writer.add_scalar('Total reward',total_reward,itr)
+        writer.add_scalar('A2C loss', loss[0].item(),itr)
+        writer.add_scalar('Accelerator loss', 0,itr)
+        
+                  
+    writer.close()     
             
     
