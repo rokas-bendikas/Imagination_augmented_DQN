@@ -1,9 +1,10 @@
 import torch as t
 import torch.nn.functional as f
+import torch.nn as nn
 from models.modules.dqn.DQN import DQN_model as DQN
 from models.modules.a2c.A2C import A2C_model as A2C
 from models.modules.model_accelerator import Accelerator 
-from utils.utils import plot_data
+from utils.utils import plot_data,copy_weights
 import numpy as np
 from utils.device import Device
 
@@ -37,7 +38,7 @@ class RLBench_models:
         if self.args.accelerator:
             self._init_Accelerator()
             
-            
+          
 
     # Forward function for both model and accelerator
     def __call__(self,x):
@@ -242,8 +243,7 @@ class RLBench_models:
     def _init_DQN(self):
         
         network = DQN(self.args)
-        network.load(self.args.load_model)
-        self.models['model'] = network
+        self.models['model'] = network.share_memory()
         
         # Epsilon linear annealing
         #self.epsilon = self.args.eps
@@ -253,7 +253,7 @@ class RLBench_models:
         self.gripper_open = 1.0
         
         # Optimiser
-        self.optimisers.append(t.optim.SGD(params=self.models['model'].parameters(), lr=self.args.lr,momentum=0.9))
+        self.optimisers.append(t.optim.Adam(params=self.models['model'].parameters(), lr=self.args.lr))
         
     
     
@@ -264,8 +264,8 @@ class RLBench_models:
     def _init_A2C(self):
         
         network = A2C(self.args)
-        network.load(self.args.load_model)
-        self.models['model'] = network
+        #network.load(self.args.load_model)
+        self.models['model'] = network.share_memory()
         
         # Flags
         self.gripper_open = 1.0
@@ -283,9 +283,9 @@ class RLBench_models:
     
     def _init_Accelerator(self)->None:
         accelerator = Accelerator()
-        accelerator.load(self.args.load_model_acc)
-        self.models['accelerator'] = accelerator
+        self.models['accelerator'] = accelerator.share_memory()
         self.optimisers.append(t.optim.Adam(params=self.models['accelerator'].parameters(), lr=5e-5))
+        
         
         
         
@@ -293,6 +293,12 @@ class RLBench_models:
     ###################################### General UTILS #########################################
     ##############################################################################################
         
+    def load(self):
+        
+        if self.args.load_model != '':
+        
+            [self.models[model_name].load(self.args.load_model+model_name+'.pts') for model_name in self.models]
+            print("Models were loaded successfully!")
         
         
     def _action_discrete_to_continous(self,a):
@@ -321,3 +327,7 @@ class RLBench_models:
         action = np.concatenate([d_pos, d_quat, [self.gripper_open]])
         
         return action
+    
+    
+    def copy_from_model(self,source_model):
+        [copy_weights(target,source) for target,source in zip(self.models.values(),source_model.models.values())]

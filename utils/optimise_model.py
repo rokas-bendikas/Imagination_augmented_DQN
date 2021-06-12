@@ -14,6 +14,7 @@ def optimise_model(shared_model, local_model, loss, lock):
     # Delete the gradients
     [o.zero_grad() for o in local_model.optimisers]
     
+    
     # Compute gradients
     [l.backward() for l in loss]
     
@@ -22,7 +23,7 @@ def optimise_model(shared_model, local_model, loss, lock):
 
     # The critical section begins
     lock.acquire()
-    [copy_weights(s_model, l_model,True) for s_model,l_model in zip(shared_model.models.values(),local_model.models.values())]
+    shared_model.copy_from_model(local_model)
     lock.release()
     # The critical section ends
 

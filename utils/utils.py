@@ -2,18 +2,14 @@ import torch as t
 from utils.device import Device
 import time
 from datetime import datetime
-from copy import deepcopy as dc
+from copy import deepcopy 
 from torchvision.utils import save_image,make_grid
 
 
-def copy_weights(target, source, deepcopy=False):
-    if deepcopy:
-        target.load_state_dict(dc(source.state_dict()))
-    else:
-        target.load_state_dict(source.state_dict())
-        
-
-
+def copy_weights(target, source):
+    
+    target.load_state_dict(deepcopy(source.state_dict()))
+     
 def as_tensor(x, dtype=t.float32,device=Device.get_device()):
     return t.tensor(x, dtype=dtype, device=device,requires_grad=False)
 
@@ -52,7 +48,7 @@ def checkpoint(shared_model, args,warmup_flag,lock):
                 now = datetime.now().strftime("%d_%m_%H_%M")
                 
                 lock.acquire()
-                [shared_model.models[key].save(args.save_model+'/{}_{}.pts'.format(key,now)) for key in shared_model.models]
+                [shared_model.models[key].save(args.save_model+'{}_{}.pts'.format(key,now)) for key in shared_model.models]
                 lock.release()
 
     except KeyboardInterrupt:
@@ -77,3 +73,22 @@ def plot_data(batch,predicted):
     save_image(make_grid(img4), './plots/img4.png')
     save_image(make_grid(predicted[:,0:3,:,:]), './plots/model1.png')
     save_image(make_grid(predicted[:,3:6,:,:]), './plots/model2.png')
+    
+def plot_data2(batch,predicted):
+    
+    s = batch[0]
+    ns = batch[2]
+    
+    img1 = s[:,0:3,:,:]
+    img2 = s[:,3:6,:,:]
+    
+    img3 = ns[:,0:3,:,:]
+    img4 = ns[:,3:6,:,:]
+    
+   
+    save_image(make_grid(img1), './plots2/img1.png')
+    save_image(make_grid(img2), './plots2/img2.png')
+    save_image(make_grid(img3), './plots2/img3.png')
+    save_image(make_grid(img4), './plots2/img4.png')
+    save_image(make_grid(predicted[:,0:3,:,:]), './plots2/model1.png')
+    save_image(make_grid(predicted[:,3:6,:,:]), './plots2/model2.png')

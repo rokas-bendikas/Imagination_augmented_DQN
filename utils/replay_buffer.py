@@ -95,30 +95,8 @@ class ReplayBufferDQN:
         return [states,actions,next_states]
     
     
-    def load_queue(self,simulator,queue,lock,args):
+    def load_queue(self,queue,lock):
         
-        """
-        empty_count = 0
-        
-        
-        lock.acquire()
-        simulator.reset()
-        lock.release()
-        
-        
-        # Limiting number of updates based on simulator speed
-        while(int(queue.qsize()) < args.batch_size / 8):
-            
-            time.sleep(0.1)
-            
-            if (empty_count >= 5):
-                simulator.reset()
-                empty_count = 0
-                
-            elif (int(queue.qsize())==0):
-                empty_count+=1
-
-        """
         
         for i in range(int(queue.qsize())):
             
@@ -146,7 +124,7 @@ class ReplayBufferDQN:
             self.length = min(self.args.buffer_size,self.length+1)
             
             # Update accelerator buffer
-            if args.accelerator:
+            if self.args.accelerator:
                 self.accelerator_memory.add(obs=state,
                             act=action,
                             next_obs=next_state)
