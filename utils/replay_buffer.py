@@ -138,7 +138,6 @@ class ReplayBufferDQN:
                                 act=action,
                                 next_obs=next_state)
                     
-                time.sleep(1)
         
         
     def __len__(self):

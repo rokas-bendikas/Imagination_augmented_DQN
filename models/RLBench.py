@@ -22,6 +22,10 @@ class RLBench_models:
         # Models that are used
         self.models = dict()
         
+        if not testing:
+            # Used optimisers
+            self.optimisers = list()
+        
         # Initialise DQN model
         if self.args.model == "DQN":
             self._init_DQN()
@@ -37,9 +41,7 @@ class RLBench_models:
         if self.args.accelerator:
             self._init_Accelerator()
             
-        if not testing:
-            # Used optimisers
-            self.optimisers = list()
+        
             
             
           

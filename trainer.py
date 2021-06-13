@@ -35,7 +35,7 @@ def main():
     parser.add_argument('--buffer_size', default=150000, type=int, help='Buffer size [default = 180000]')
     parser.add_argument('--episode_length', default=750, type=int, help='Episode length [default=900]')
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
-    parser.add_argument('--num_episodes', default=750, type=int, help='How many episodes to plan for (used for decay parameters) [default=750]')
+    parser.add_argument('--num_episodes', default=800, type=int, help='How many episodes to plan for (used for decay parameters) [default=750]')
     parser.add_argument('--warmup', default=50, type=int, help='How many full exploration iterations [default=10]')
     parser.add_argument('--accelerator', default=True, type=str2bool, help='Use model-based accelerator [default=True]')
     parser.add_argument('--model', default="DQN", type=str, help='What model to use [default="DQN"]')
