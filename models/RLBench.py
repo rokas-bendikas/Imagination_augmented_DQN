@@ -7,6 +7,7 @@ from models.modules.model_accelerator import Accelerator
 from utils.utils import plot_data,copy_weights
 import numpy as np
 from utils.device import Device
+import getch
 
 
 
@@ -56,6 +57,7 @@ class RLBench_models:
         # Epsilon-greedy for DQN
         if self.args.model == "DQN":
             
+            
             # During warmup 
             if (itr < self.args.warmup):
                 eps = 1
@@ -72,14 +74,49 @@ class RLBench_models:
                 epsilon = self.args.eps - (itr-self.args.warmup)*self.epsilon_step
                 eps = max(epsilon, self.args.min_eps)
                 
-                        
+            
             # Epsilon-greedy policy
             if np.random.RandomState().rand() < eps:
                 action_discrete = np.random.RandomState().randint(self.args.n_actions)
             else:
                 action_discrete = self.forward(state).argmax().item()
     
-              
+            
+            
+                     
+            """
+            inp = getch.getch()
+            
+            
+            action = 0
+            
+            if inp == 'w':
+                action = 0
+                
+            if inp == 's':
+                action = 1
+            
+            if inp == 'a':
+                action = 2
+                
+            if inp == 'd':
+                action = 3
+                
+            if inp == 'o':
+                action = 4
+                
+            if inp == 'l':
+                action = 5
+            
+            if inp == 'm':
+                action = 6
+                
+            
+             
+            action_discrete = action
+            """
+            
+            
             # Convert DQN discrete action to continuous
             action = self._action_discrete_to_continous(action_discrete)
             

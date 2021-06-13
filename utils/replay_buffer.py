@@ -97,37 +97,48 @@ class ReplayBufferDQN:
     
     def load_queue(self,queue,lock):
         
+        # Count of samples loaded
+        num_loaded = 0
         
-        for i in range(int(queue.qsize())):
+        # Load until reaching batch size
+        while num_loaded < self.args.batch_size:
             
-            # Read from the queue
-            lock.acquire()
-            data = queue_to_data(queue.get())
-            lock.release()
-            
-            # Expand
-            state = data[0]
-            action = data[1]
-            reward = data[2]
-            next_state = data[3]
-            terminal = data[4]
-            
-            
-            # Store for replay buffer
-            self.memory.add(obs=state,
-                            act=action,
-                            rew=reward,
-                            next_obs=next_state,
-                            terminal=terminal)
-            
-            # Set the buffer current length
-            self.length = min(self.args.buffer_size,self.length+1)
-            
-            # Update accelerator buffer
-            if self.args.accelerator:
-                self.accelerator_memory.add(obs=state,
-                            act=action,
-                            next_obs=next_state)
+            # If the queue is not empty
+            if not queue.empty():
+                
+                # Increasing loaded sample count
+                num_loaded += 1
+                
+                # Read from the queue
+                lock.acquire()
+                data = queue_to_data(queue.get())
+                lock.release()
+                
+                # Expand
+                state = data[0]
+                action = data[1]
+                reward = data[2]
+                next_state = data[3]
+                terminal = data[4]
+                
+                
+                # Store for replay buffer
+                self.memory.add(obs=state,
+                                act=action,
+                                rew=reward,
+                                next_obs=next_state,
+                                terminal=terminal)
+                
+                # Set the buffer current length
+                self.length = min(self.args.buffer_size,self.length+1)
+                
+                # Update accelerator buffer
+                if self.args.accelerator:
+                    self.accelerator_memory.add(obs=state,
+                                act=action,
+                                next_obs=next_state)
+                    
+                time.sleep(1)
         
         
     def __len__(self):

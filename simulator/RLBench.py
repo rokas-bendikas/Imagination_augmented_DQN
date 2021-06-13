@@ -6,6 +6,7 @@ from rlbench.observation_config import ObservationConfig, CameraConfig
 from rlbench.tasks import Masters
 
 
+
 class RLBench(BaseSimulator):
     def __init__(self,h=False):
         
@@ -23,6 +24,7 @@ class RLBench(BaseSimulator):
         
         # Flags
         self.launched=False
+        self.counts_failed = 0
         
 
     def launch(self):
@@ -39,9 +41,10 @@ class RLBench(BaseSimulator):
     
     def step(self, action):
         
+        
         s, r, t = self.task.step(action)
             
-          
+      
         return s, r, t
     
     @staticmethod
