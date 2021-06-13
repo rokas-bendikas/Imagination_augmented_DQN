@@ -1,6 +1,5 @@
 import torch as t
 import torch.nn.functional as f
-import torch.nn as nn
 from models.modules.dqn.DQN import DQN_model as DQN
 from models.modules.a2c.A2C import A2C_model as A2C
 from models.modules.model_accelerator import Accelerator 
@@ -12,17 +11,16 @@ import getch
 
 
 class RLBench_models:
-    def __init__(self,args):
+    def __init__(self,args,testing=False):
         super(RLBench_models,self).__init__()
+        
+        self.testing = testing
         
         # Saving args
         self.args = args
         
         # Models that are used
         self.models = dict()
-        
-        # Used optimisers
-        self.optimisers = list()
         
         # Initialise DQN model
         if self.args.model == "DQN":
@@ -38,6 +36,11 @@ class RLBench_models:
         # Innitialise accelerator 
         if self.args.accelerator:
             self._init_Accelerator()
+            
+        if not testing:
+            # Used optimisers
+            self.optimisers = list()
+            
             
           
 
@@ -57,22 +60,29 @@ class RLBench_models:
         # Epsilon-greedy for DQN
         if self.args.model == "DQN":
             
-            
-            # During warmup 
-            if (itr < self.args.warmup):
-                eps = 1
-                    
-            # After warmup
-            else:
-                
-                # Shared flag for the end of warmup
-                if warmup_flag.value:
-                    with warmup_flag.get_lock():
-                        warmup_flag.value = False  
+            if not self.testing:
+                # During warmup 
+                if (itr < self.args.warmup):
+                    eps = 1
                         
-                # Updating decay parameters
-                epsilon = self.args.eps - (itr-self.args.warmup)*self.epsilon_step
-                eps = max(epsilon, self.args.min_eps)
+                # After warmup
+                else:
+                    
+                    # Shared flag for the end of warmup
+                    if warmup_flag.value:
+                        with warmup_flag.get_lock():
+                            warmup_flag.value = False  
+                            
+                    # Updating decay parameters
+                    epsilon = self.args.eps - (itr-self.args.warmup)*self.epsilon_step
+                    eps = max(epsilon, self.args.min_eps)
+                    
+                # Tensorboard logs for epsilon
+                writer.add_scalar('Epsilon value',eps,itr)
+                    
+                    
+            else:
+                eps = max(0,self.args.eps)
                 
             
             # Epsilon-greedy policy
@@ -120,8 +130,6 @@ class RLBench_models:
             # Convert DQN discrete action to continuous
             action = self._action_discrete_to_continous(action_discrete)
             
-            # Tensorboard logs for epsilon
-            writer.add_scalar('Epsilon value',eps,itr)
             
             out = [action,action_discrete]
             
@@ -282,15 +290,15 @@ class RLBench_models:
         network = DQN(self.args)
         self.models['model'] = network.share_memory()
         
-        # Epsilon linear annealing
-        #self.epsilon = self.args.eps
-        self.epsilon_step = self.args.eps/self.args.num_episodes
-        
         # Flags
         self.gripper_open = 1.0
         
-        # Optimiser
-        self.optimisers.append(t.optim.Adam(params=self.models['model'].parameters(), lr=self.args.lr))
+        if not self.testing:
+            # Epsilon linear annealing
+            self.epsilon_step = self.args.eps/self.args.num_episodes
+            
+            # Optimiser
+            self.optimisers.append(t.optim.Adam(params=self.models['model'].parameters(), lr=self.args.lr))
         
     
     
@@ -301,15 +309,16 @@ class RLBench_models:
     def _init_A2C(self):
         
         network = A2C(self.args)
-        #network.load(self.args.load_model)
         self.models['model'] = network.share_memory()
         
         # Flags
         self.gripper_open = 1.0
         
-        # Optimiser
-        self.optimisers.append(t.optim.Adam(params=self.models['model'].parameters(), lr=self.args.lr))
+        if not self.testing:
         
+            # Optimiser
+            self.optimisers.append(t.optim.Adam(params=self.models['model'].parameters(), lr=self.args.lr))
+            
     
     
     
@@ -321,7 +330,9 @@ class RLBench_models:
     def _init_Accelerator(self)->None:
         accelerator = Accelerator()
         self.models['accelerator'] = accelerator.share_memory()
-        self.optimisers.append(t.optim.Adam(params=self.models['accelerator'].parameters(), lr=5e-5))
+        
+        if not self.testing:
+            self.optimisers.append(t.optim.Adam(params=self.models['accelerator'].parameters(), lr=5e-5))
         
         
         
@@ -336,7 +347,11 @@ class RLBench_models:
         
             [self.models[model_name].load(self.args.load_model+model_name+'.pts') for model_name in self.models]
             print("Models were loaded successfully!")
+            
+    def eval(self):
         
+        [self.models[model_name].eval() for model_name in self.models]
+            
         
     def _action_discrete_to_continous(self,a):
         
