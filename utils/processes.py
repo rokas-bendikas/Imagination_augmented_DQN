@@ -196,31 +196,15 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
         # Loading the data from the queue
         buffer.load_queue(queue,lock)
 
-        # Whilst the buffer is too small
-        while (len(buffer) < args.batch_size):
+        # During warmup
+        while (warmup_flag.value):
+
             # Loading the data from the queue
             buffer.load_queue(queue,lock)
 
-        # During warmup
-        if (warmup_flag.value):
-
-            # Training the accelerator
-            if args.accelerator:
-                batch_accelerator = buffer.sample_batch_accelerator(Device.get_device())
-                loss = model_local.calculate_loss_accelerator(batch_accelerator, Device.get_device())
-                model_local.optimisers[1].zero_grad()
-                loss.backward()
-                model_local.optimisers[1].step()
-
-                # Accelerator logs
-                logging.debug('DQN loss: {:.6f}, Accelerator loss: {:.6f}, Buffer size: {}, Beta value: {:.6f}'.format(0, loss.item(), len(buffer),beta.value))
-                writer.add_scalar('DQN loss', 0,itr)
-                writer.add_scalar('Accelerator loss', loss.item(),itr)
-                writer.add_scalar('Beta value', beta.value,itr)
-
             # Avoid high number of iteration when training without the accelerator
-            #time.sleep(1)
-            continue
+            time.sleep(1)
+            
 
         # Sample a data point from dataset
         batches = buffer.sample_batch(model_local,target,Device.get_device(),beta.value)

@@ -1,6 +1,6 @@
-from models.RLBench import RLBench_models
+from models.network import I2A_model
 from simulator.RLBench import RLBench
 
 environments = {
-    'RLBench': (RLBench, RLBench_models)
+    'RLBench': (RLBench, I2A_model)
 }

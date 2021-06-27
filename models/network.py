@@ -2,6 +2,7 @@ import torch as t
 import torch.nn.functional as f
 from models.modules.dqn.DQN import DQN_model as DQN
 from models.modules.model_accelerator import Accelerator
+from models.modules.policy.policy_head import Policy_Head
 from utils.utils import plot_data,copy_weights
 import numpy as np
 from utils.device import Device
@@ -9,28 +10,32 @@ import getch
 
 
 
-class RLBench_models:
+class I2A_model:
     def __init__(self,args,testing=False):
         super(RLBench_models,self).__init__()
 
+        # Tresting flag
         self.testing = testing
 
         # Saving args
         self.args = args
 
-        # Models that are used
+        # Models to be used
         self.models = dict()
 
-        if not testing:
-            # Used optimisers
-            self.optimisers = list()
+        # Dicts for modules
+        if not self.testing:
+            self.optimisers = dict()
 
-        # Initialise DQN model
-        self._init_DQN()
+        # Initialise model-free network
+        self._init_action_predictor()
 
-        # Innitialise accelerator
-        if self.args.accelerator:
-            self._init_Accelerator()
+        # Innitialise rollout engine with policy head
+        self._init_rollout_engine()
+
+
+        if self.testing:
+            self.eval()
 
 
     # Forward function for both model and accelerator
@@ -117,10 +122,7 @@ class RLBench_models:
         # Convert DQN discrete action to continuous
         action = self._action_discrete_to_continous(action_discrete)
 
-
         out = [action,action_discrete]
-
-
 
         return out
 
@@ -132,19 +134,21 @@ class RLBench_models:
         if(len(x.shape)==3):
             x = x.unsqueeze(0).permute(0,3,1,2)
 
+        # List of all rollouts
+        rollouts = list()
 
-        # If using accelerator module
-        if self.args.accelerator:
+        for action in self.args.n_actions:
 
-            # Accelerator
-            rollout = self.models['accelerator'](x,self.args,Device.get_device())
-            out = self.models['model'](x,rollout)
-
-        else:
-            out = self.models['model'](x)
+            # Rollout
+            rollouts.append(self.models['accelerator'](x,action,Device.get_device()))
 
 
-        return out
+        encoding = self._aggregate_rollouts(rollouts)
+
+        Q_values = self.policy_head(encoding)
+
+
+        return Q_values
 
 
 
@@ -202,7 +206,6 @@ class RLBench_models:
 
     def _calculate_loss_accelerator(self, batch, device):
 
-
         state, action, next_state = batch
 
         predicted = self.models['accelerator'].predict_single_action(state,action,self.args,device)
@@ -216,13 +219,12 @@ class RLBench_models:
 
 
     ##############################################################################################
-    ###################################### DQN UTILS #############################################
+    ######################################## INITS ###############################################
     ##############################################################################################
 
-    def _init_DQN(self):
+    def _init_action_predictor(self):
 
-        network = DQN(self.args)
-        self.models['model'] = network.share_memory()
+        self.models['model-free'] = DQN(self.args).share_memory()
 
         # Flags
         self.gripper_open = 1.0
@@ -232,22 +234,18 @@ class RLBench_models:
             self.epsilon_step = self.args.eps/self.args.num_episodes
 
             # Optimiser
-            self.optimisers.append(t.optim.Adam(params=self.models['model'].parameters(), lr=self.args.lr))
+            self.optimisers['model-free'] = Adam(params=self.models['model-free'].parameters(), lr=self.args.lr))
 
 
-    ##############################################################################################
-    #################################### Accelerator UTILS #######################################
-    ##############################################################################################
 
+    def _init_rollut_engine(self)->None:
 
-    def _init_Accelerator(self)->None:
-        accelerator = Accelerator()
-        self.models['accelerator'] = accelerator.share_memory()
+        self.models['rollouts'] = rollout_module(self.model_free,self.args).share_memory()
+        self.models['policy'] = Policy_Head(self.args).share_memory()
 
         if not self.testing:
-            self.optimisers.append(t.optim.Adam(params=self.models['accelerator'].parameters(), lr=5e-5))
-
-
+            params = list(self.models['rollouts'].parameters()) + list(self.models['policy'].parameters())
+            self.optimisers['rollouts'] = t.optim.Adam(params, lr=5e-5))
 
 
     ##############################################################################################
@@ -262,36 +260,14 @@ class RLBench_models:
             print("Models were loaded successfully!")
 
     def eval(self):
-
         [self.models[model_name].eval() for model_name in self.models]
 
 
-    def _action_discrete_to_continous(self,a):
+    def _aggregate_rollouts(self,rollouts):
 
-        # delta orientation
-        d_quat = np.array([0, 0, 0, 1])
+        encoding = "".join(rollouts)
 
-        # delta position
-        d_pos = np.zeros(3)
-
-        if a == 6:
-            # gripper state
-            self.gripper_open = abs(self.gripper_open - 1)
-        else:
-            # For positive magnitude
-            if(a%2==0):
-                a = int(a/2)
-                d_pos[a] = 0.02
-
-            # For negative magnitude
-            else:
-                a = int((a-1)/2)
-                d_pos[a] = -0.02
-
-        # Forming action as expected by the environment
-        action = np.concatenate([d_pos, d_quat, [self.gripper_open]])
-
-        return action
+        return encoding
 
 
     def copy_from_model(self,source_model):
