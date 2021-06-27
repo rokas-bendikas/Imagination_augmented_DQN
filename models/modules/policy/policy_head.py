@@ -1,9 +1,9 @@
 import torch as t
 import torch.nn as nn
-from modules.imagination.imagination_core import Imagination_Core
-from modules.environment.EM import environment_model
+from models.modules.imagination.imagination_core import Imagination_Core
+from models.modules.environment.EM import environment_model
 
-class Policy_Head(nn.Module):
+class policy_head(nn.Module):
     def __init__(self,args):
         super().__init__()
 
@@ -11,15 +11,15 @@ class Policy_Head(nn.Module):
         self.args = args
 
         self.network = nn.Sequential(
-            nn.Linear(encoding_size,3000),
+            nn.Linear(6000,3000),
             nn.ReLU(),
             nn.Linear(3000,1500),
             nn.ReLU(),
             nn.Linear(1500,args.n_actions)
         )
 
-    def forward(self,in):
+    def forward(self,x):
 
-        out = self.network(in)
+        out = self.network(x)
 
         return out

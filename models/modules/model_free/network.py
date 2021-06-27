@@ -11,9 +11,9 @@ import torch.nn as nn
 import numpy as np
 from models.base import BaseModel
 
-class model_free_network(BaseModel):
+class action_predictor(BaseModel):
     def __init__(self,args):
-        super(DQN_model,self).__init__()
+        super(action_predictor,self).__init__()
 
         self.args = args
 
@@ -59,26 +59,26 @@ class model_free_network(BaseModel):
             nn.MaxPool2d(kernel_size=2),
 
             #3*3*512
-            nn.Flatten()
+            nn.Flatten(),
             # 4608
             nn.Linear(4608,2304),
             nn.ReLU(),
             nn.Linear(2304,self.args.n_actions),
-            nn.Softmax())
+            nn.Softmax(dim=1))
 
 
-    def forward(self,x):
+    def forward(self,state):
 
         # For a single input processing
-        if(len(x.shape)==3):
-            x = x.unsqueeze(0).permute(0,3,1,2)
+        if(len(state.shape)==3):
+            state = state.unsqueeze(0)
 
 
-        action_discrete = self.network(state).argmax()
+        action_discrete = self.network(state).argmax(dim=1)
+
 
         # Convert DQN discrete action to continuous
         action = self._action_discrete_to_continous(action_discrete)
-
 
         out = [action,action_discrete]
 
@@ -87,29 +87,29 @@ class model_free_network(BaseModel):
 
 
 
-    def _action_discrete_to_continous(self,a):
+    def _action_discrete_to_continous(self,actions):
 
-        # delta orientation
-        d_quat = np.array([0, 0, 0, 1])
+        actions_continous = list()
 
-        # delta position
-        d_pos = np.zeros(3)
+        for a in actions.cpu().numpy():
 
-        if a == 6:
-            # gripper state
-            self.gripper_open = abs(self.gripper_open - 1)
-        else:
+            # delta orientation
+            d_quat = np.array([0, 0, 0, 1])
+
+            # delta position
+            d_pos = np.zeros(3)
+
             # For positive magnitude
             if(a%2==0):
-                a = int(a/2)
-                d_pos[a] = 0.02
+                a_val = int(a/2)
+                d_pos[a_val] = 0.02
 
             # For negative magnitude
             else:
-                a = int((a-1)/2)
-                d_pos[a] = -0.02
+                a_val = int((a-1)/2)
+                d_pos[a_val] = -0.02
 
-        # Forming action as expected by the environment
-        action = np.concatenate([d_pos, d_quat, [self.gripper_open]])
+            # Forming action as expected by the environment
+            actions_continous.append(np.concatenate([d_pos, d_quat, [0]]))
 
-        return action
+        return actions_continous

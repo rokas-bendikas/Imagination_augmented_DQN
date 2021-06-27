@@ -1,7 +1,9 @@
 import torch as t
 import torch.nn as nn
-from modules.imagination.imagination_core import Imagination_Core
-from modules.environment.EM import environment_model
+from models.modules.imagination.imagination_core import Imagination_Core
+from models.modules.environment.EM import environment_model
+from models.modules.rollouts.utils import rollout_encoder
+
 
 class rollout_engine(nn.Module):
     def __init__(self,main_model,args):
@@ -14,28 +16,31 @@ class rollout_engine(nn.Module):
         self.model_free = main_model
 
         # Environment model
-        self.env_model = environment_model()
+        self.env_model = environment_model(args).share_memory()
 
         # Imagination core
-        self.imagination_core = Imagination_Core(self.env_model,self.model_free)
+        self.imagination_core = Imagination_Core(self.env_model,self.model_free).share_memory()
+
+        # State encoder
+        self.state_encoder = rollout_encoder()
 
         # Transformer
-        self.transformer = nn.Transformer(batch_first=True)
+        #self.transformer = nn.Transformer(batch_first=True).share_memory()
 
     def forward(self,state,action,device):
 
         encoding_list = list()
 
-        for i in self.args.num_rollouts:
+        for i in range(self.args.num_rollouts):
 
             # Predicting successor state and reward
             if i == 0:
-                next_state, reward = self.imagination_core(state,self.args,device,action)
+                next_state = self.imagination_core(state,self.args,device,action)
             else:
-                next_state, reward = self.imagination_core(state,self.args,device)
+                next_state= self.imagination_core(state,self.args,device)
 
             # Encoding state representation
-            encoding = self.env_model.encode(next_state)
+            encoding = self.state_encoder(next_state)
 
             # Adding encoding to the encoding to the list
             encoding_list.append(encoding)
@@ -53,3 +58,10 @@ class rollout_engine(nn.Module):
         out = encoding
 
         return out
+
+    def get_loss(self,batch,device):
+
+        # Environmental model loss
+        loss = self.env_model(batch,device)
+
+        return loss

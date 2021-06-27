@@ -66,7 +66,7 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
 
         # Updating local model
         lock.acquire()
-        model_local.copy_from_model(model_shared)
+        model_local._copy_from_model(model_shared)
         lock.release()
 
         # Reseting the scene
@@ -99,6 +99,7 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
             # Agent step
             try:
                 next_state, reward, terminal = simulator.step(action)
+
             # Handling failure in planning and wrong action for inverse Jacobian
             except (ConfigurationPathError,InvalidActionError):
                 # If failed multiple times reseting the environment
@@ -112,12 +113,6 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
 
             # Reset the failure count
             counts_failed = 0
-
-            """
-            except Exception as e:
-                print(e)
-                break
-            """
 
             # Concainating diffrent cameras
             next_state_processed = np.concatenate((next_state.front_rgb,next_state.wrist_rgb),axis=2)
@@ -204,13 +199,13 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
 
             # Avoid high number of iteration when training without the accelerator
             time.sleep(1)
-            
+
 
         # Sample a data point from dataset
         batches = buffer.sample_batch(model_local,target,Device.get_device(),beta.value)
 
         # Calculate loss for the batch
-        loss = model_local.calculate_loss(batches,Device.get_device(),target)
+        loss = model_local.get_losses(batches,target,Device.get_device())
 
         # Updated the shared model
         optimise_model(model_shared,model_local,loss,lock)
@@ -231,6 +226,6 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
         writer.add_scalar('Beta value', beta.value,itr)
 
         if itr % args.target_update_frequency == 0:
-            target.copy_from_model(model_local)
+            target._copy_from_model(model_local)
 
     writer.close()

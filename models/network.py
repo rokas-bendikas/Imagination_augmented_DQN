@@ -1,8 +1,9 @@
 import torch as t
 import torch.nn.functional as f
-from models.modules.dqn.DQN import DQN_model as DQN
-from models.modules.model_accelerator import Accelerator
-from models.modules.policy.policy_head import Policy_Head
+import torch.nn as nn
+from models.modules.model_free.network import action_predictor
+from models.modules.rollouts.rollout_module import rollout_engine
+from models.modules.policy.policy_head import policy_head
 from utils.utils import plot_data,copy_weights
 import numpy as np
 from utils.device import Device
@@ -12,10 +13,11 @@ import getch
 
 class I2A_model:
     def __init__(self,args,testing=False):
-        super(RLBench_models,self).__init__()
+        super(I2A_model,self).__init__()
 
-        # Tresting flag
+        # Flags
         self.testing = testing
+        self.gripper_open = 1.0
 
         # Saving args
         self.args = args
@@ -28,10 +30,7 @@ class I2A_model:
             self.optimisers = dict()
 
         # Initialise model-free network
-        self._init_action_predictor()
-
-        # Innitialise rollout engine with policy head
-        self._init_rollout_engine()
+        self._init_models()
 
 
         if self.testing:
@@ -137,10 +136,10 @@ class I2A_model:
         # List of all rollouts
         rollouts = list()
 
-        for action in self.args.n_actions:
+        for action in range(self.args.n_actions):
 
             # Rollout
-            rollouts.append(self.models['accelerator'](x,action,Device.get_device()))
+            rollouts.append(self.models['rollouts'](x,action,Device.get_device()))
 
 
         encoding = self._aggregate_rollouts(rollouts)
@@ -152,24 +151,20 @@ class I2A_model:
 
 
 
-    def calculate_loss(self,batches,device,target=None):
+    def get_losses(self,batches,target,device):
 
-        losses = list()
+        losses = dict()
 
         # Loss of the main model
-        [losses.append(loss) for loss in self._calculate_loss_model(batches[0],device,target)]
+        for key, value in self._loss_rollouts(batches,target).items():
+            losses[key] = value
 
-        # Loss of the accelerator
-        if self.args.accelerator:
-            losses.append(self._calculate_loss_accelerator(batches[1],device))
+        # Loss of model-free path
+        for key, value in self._loss_action_predictor(batches).items():
+            losses[key] = value
 
         return losses
 
-    def calculate_loss_accelerator(self,batch,device):
-
-        loss = self._calculate_loss_accelerator(batch,device)
-
-        return loss
 
     def save(self):
 
@@ -184,12 +179,9 @@ class I2A_model:
 
 
 
-    def _calculate_loss_model(self, batch,device,target=None):
+    def _loss_rollouts(self,batches,target):
 
-        ###############################
-        ############ DQN ##############
-        ###############################
-        state, action, reward, next_state, terminal = batch
+        state, action, reward, next_state, terminal = batches[0]
 
         # Target value
         with t.no_grad():
@@ -198,22 +190,24 @@ class I2A_model:
         # Network output
         predicted = self.forward(state).gather(1,action)
 
-        out = [f.smooth_l1_loss(predicted, target)]
+        loss = {'policy': f.smooth_l1_loss(predicted, target)}
+
+        loss['environment_model'] = self.models[rollouts].get_loss(batches[1],device)
 
         return out
 
 
 
-    def _calculate_loss_accelerator(self, batch, device):
+    def _loss_action_predictor(self,batches):
 
-        state, action, next_state = batch
+        state, action, _, next_state, _ = batches[0]
 
-        predicted = self.models['accelerator'].predict_single_action(state,action,self.args,device)
+        predicted = self.models['action_predictor'](state)
 
         if self.args.plot:
             plot_data(batch,predicted)
 
-        loss = f.mse_loss(predicted,next_state)
+        loss = {'action_predictor': f.cross_entropy(predicted,next_state)}
 
         return loss
 
@@ -222,30 +216,31 @@ class I2A_model:
     ######################################## INITS ###############################################
     ##############################################################################################
 
-    def _init_action_predictor(self):
 
-        self.models['model-free'] = DQN(self.args).share_memory()
 
-        # Flags
-        self.gripper_open = 1.0
+
+    def _init_models(self)->None:
+
+        self.models['policy'] = policy_head(self.args).share_memory()
+        self.models['action_predictor'] = action_predictor(self.args).share_memory()
+
+        self.models['rollouts'] = rollout_engine(self.models['action_predictor'],self.args)
 
         if not self.testing:
+
+            # Action predictor optimiser
+            self.optimisers['action_predictor'] = t.optim.Adam(params=self.models['action_predictor'].parameters(), lr=5e-5)
+
+            # Envirnment model optimiser
+            self.optimisers['environment_model'] = t.optim.Adam(self.models['rollouts'].env_model.parameters(), lr=5e-5)
+
+            # Policy head and transformer head
+            params = list(self.models['rollouts'].state_encoder.parameters()) + list(self.models['policy'].parameters())
+
+            self.optimisers['policy_network'] = t.optim.Adam(params, lr=5e-5)
+
             # Epsilon linear annealing
             self.epsilon_step = self.args.eps/self.args.num_episodes
-
-            # Optimiser
-            self.optimisers['model-free'] = Adam(params=self.models['model-free'].parameters(), lr=self.args.lr))
-
-
-
-    def _init_rollut_engine(self)->None:
-
-        self.models['rollouts'] = rollout_module(self.model_free,self.args).share_memory()
-        self.models['policy'] = Policy_Head(self.args).share_memory()
-
-        if not self.testing:
-            params = list(self.models['rollouts'].parameters()) + list(self.models['policy'].parameters())
-            self.optimisers['rollouts'] = t.optim.Adam(params, lr=5e-5))
 
 
     ##############################################################################################
@@ -265,10 +260,39 @@ class I2A_model:
 
     def _aggregate_rollouts(self,rollouts):
 
+        print(rollouts.shape)
+
         encoding = "".join(rollouts)
 
         return encoding
 
+    def _action_discrete_to_continous(self,a):
 
-    def copy_from_model(self,source_model):
+        # delta orientation
+        d_quat = np.array([0, 0, 0, 1])
+
+        # delta position
+        d_pos = np.zeros(3)
+
+        if a == 6:
+            # gripper state
+            self.gripper_open = abs(self.gripper_open - 1)
+        else:
+            # For positive magnitude
+            if(a%2==0):
+                a = int(a/2)
+                d_pos[a] = 0.02
+
+            # For negative magnitude
+            else:
+                a = int((a-1)/2)
+                d_pos[a] = -0.02
+
+        # Forming action as expected by the environment
+        action = np.concatenate([d_pos, d_quat, [self.gripper_open]])
+
+        return action
+
+
+    def _copy_from_model(self,source_model):
         [copy_weights(target,source) for target,source in zip(self.models.values(),source_model.models.values())]
