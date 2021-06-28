@@ -8,6 +8,7 @@ Created on Wed May 19 22:27:43 2021
 
 import torch as t
 import torch.nn as nn
+import torch.nn.functional as f
 from models.modules.environment.utils import DoubleConv,Down,Up,OutConv
 
 
@@ -28,13 +29,13 @@ class environment_model(nn.Module):
 
 
     # Predict the next state representation given a single action
-    def forward(self,state,action,args,device):
+    def forward(self,state,action,device):
 
         if(len(state.shape)==3):
             state = state.unsqueeze(0)
 
         # Create a tiled one-hot action representation, shape [batch_size,num_actions,img_height,img_width]
-        action_tiled = t.zeros(state.shape[0],args.n_actions,state.shape[2],state.shape[3],device=device)
+        action_tiled = t.zeros(state.shape[0],self.args.n_actions,state.shape[2],state.shape[3],device=device)
 
         # Set the action tile to 1
         action_tiled[:,action,:,:] = 1
@@ -54,23 +55,11 @@ class environment_model(nn.Module):
 
         predicted = self(state,action,device)
 
-        if self.args.plot:
-            plot_data(batch,predicted)
-
-        loss = {'environment-model': f.mse_loss(predicted,next_state)}
+        loss = f.mse_loss(predicted,next_state)
 
         return loss
 
 
-
-    def encode(self,x):
-        x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        out = self.down4(x4)
-
-        return out
 
     def encode_decode(self,x):
         x1 = self.inc(x)
@@ -78,6 +67,9 @@ class environment_model(nn.Module):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
+
+
+
         x = self.up1(x5, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)

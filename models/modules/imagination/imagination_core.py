@@ -14,6 +14,6 @@ class Imagination_Core(nn.Module):
         if not action:
             _,action = self.model_free(state)
 
-        next_state = self.env_model(state,action,args,device)
+        next_state = self.env_model(state,action,device)
 
         return next_state

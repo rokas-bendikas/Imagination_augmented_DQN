@@ -38,9 +38,9 @@ class I2A_model:
 
 
     # Forward function for both model and accelerator
-    def __call__(self,x):
+    def __call__(self,x,device):
 
-        return self.forward(x)
+        return self.forward(x,device)
 
 
     # Converting network outputs to discrete actions:
@@ -127,7 +127,7 @@ class I2A_model:
 
 
 
-    def forward(self,x):
+    def forward(self,x,device):
 
         # Adjust for single-input batch
         if(len(x.shape)==3):
@@ -142,10 +142,9 @@ class I2A_model:
             rollouts.append(self.models['rollouts'](x,action,Device.get_device()))
 
 
-        encoding = self._aggregate_rollouts(rollouts)
+        encoding = self._aggregate_rollouts(rollouts,device)
 
-        Q_values = self.policy_head(encoding)
-
+        Q_values = self.models['policy'](encoding)
 
         return Q_values
 
@@ -156,7 +155,7 @@ class I2A_model:
         losses = dict()
 
         # Loss of the main model
-        for key, value in self._loss_rollouts(batches,target).items():
+        for key, value in self._loss_rollouts(batches,target,device).items():
             losses[key] = value
 
         # Loss of model-free path
@@ -179,22 +178,25 @@ class I2A_model:
 
 
 
-    def _loss_rollouts(self,batches,target):
+    def _loss_rollouts(self,batches,target,device):
 
         state, action, reward, next_state, terminal = batches[0]
 
+        loss = dict()
+
         # Target value
         with t.no_grad():
-            target = reward + terminal * self.args.gamma * target(next_state).max()
+            target = reward + terminal * self.args.gamma * target(next_state,device).max()
 
         # Network output
-        predicted = self.forward(state).gather(1,action)
+        predicted = self.forward(state,device).gather(1,action)
 
-        loss = {'policy': f.smooth_l1_loss(predicted, target)}
+        loss['policy'] = f.smooth_l1_loss(predicted, target)
 
-        loss['environment_model'] = self.models[rollouts].get_loss(batches[1],device)
+        for key, value in self.models['rollouts'].get_loss(batches[1],device).items():
+            loss[key] = value
 
-        return out
+        return loss
 
 
 
@@ -202,12 +204,12 @@ class I2A_model:
 
         state, action, _, next_state, _ = batches[0]
 
-        predicted = self.models['action_predictor'](state)
+        action_c,action_d = self.models['action_predictor'](state)
 
-        if self.args.plot:
-            plot_data(batch,predicted)
+        print(action.type())
+        print(action_d.type())
 
-        loss = {'action_predictor': f.cross_entropy(predicted,next_state)}
+        loss = {'action_predictor': f.binary_cross_entropy(action_d.unsqueeze(dim=1),action)}
 
         return loss
 
@@ -217,13 +219,10 @@ class I2A_model:
     ##############################################################################################
 
 
-
-
     def _init_models(self)->None:
 
-        self.models['policy'] = policy_head(self.args).share_memory()
-        self.models['action_predictor'] = action_predictor(self.args).share_memory()
-
+        self.models['policy'] = policy_head(self.args)
+        self.models['action_predictor'] = action_predictor(self.args)
         self.models['rollouts'] = rollout_engine(self.models['action_predictor'],self.args)
 
         if not self.testing:
@@ -234,14 +233,15 @@ class I2A_model:
             # Envirnment model optimiser
             self.optimisers['environment_model'] = t.optim.Adam(self.models['rollouts'].env_model.parameters(), lr=5e-5)
 
-            # Policy head and transformer head
-            params = list(self.models['rollouts'].state_encoder.parameters()) + list(self.models['policy'].parameters())
+            # State autoencoder
+            self.optimisers['state_autoencoder'] = t.optim.Adam(self.models['rollouts'].state_encoder.parameters(), lr=5e-5)
 
-            self.optimisers['policy_network'] = t.optim.Adam(params, lr=5e-5)
+            # Policy head and transformer head
+            params = list(self.models['policy'].parameters()) + list(self.models['rollouts'].lstm.parameters())
+            self.optimisers['policy_head'] = t.optim.Adam(self.models['policy'].parameters(), lr=5e-5)
 
             # Epsilon linear annealing
             self.epsilon_step = self.args.eps/self.args.num_episodes
-
 
     ##############################################################################################
     ###################################### General UTILS #########################################
@@ -258,13 +258,16 @@ class I2A_model:
         [self.models[model_name].eval() for model_name in self.models]
 
 
-    def _aggregate_rollouts(self,rollouts):
+    def _aggregate_rollouts(self,rollout_list,device):
 
-        print(rollouts.shape)
+        rollouts = t.zeros((self.args.batch_size,self.args.n_actions,384),device=device)
 
-        encoding = "".join(rollouts)
+        for idx,val in enumerate(rollout_list):
+            rollouts[:,idx,:] = val
 
-        return encoding
+        rollouts = rollouts.view(self.args.batch_size,-1)
+
+        return rollouts
 
     def _action_discrete_to_continous(self,a):
 

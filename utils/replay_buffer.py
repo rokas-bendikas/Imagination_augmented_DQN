@@ -55,8 +55,8 @@ class ReplayBufferDQN:
 
         with t.no_grad():
             # Calculate the loss to determine utility
-            target = rewards + terminals * self.args.gamma * target_net(next_states).max()
-            predicted = model(states).gather(1,actions)
+            target = rewards + terminals * self.args.gamma * target_net(next_states,device).max()
+            predicted = model(states,device).gather(1,actions)
 
 
         new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').cpu().numpy()
@@ -131,7 +131,7 @@ class ReplayBufferDQN:
                 self.length = min(self.args.buffer_size,self.length+1)
 
                 # Update accelerator buffer
-                
+
                 self.accelerator_memory.add(obs=state,
                             act=action,
                             next_obs=next_state)

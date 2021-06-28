@@ -73,9 +73,7 @@ class action_predictor(BaseModel):
         if(len(state.shape)==3):
             state = state.unsqueeze(0)
 
-
         action_discrete = self.network(state).argmax(dim=1)
-
 
         # Convert DQN discrete action to continuous
         action = self._action_discrete_to_continous(action_discrete)

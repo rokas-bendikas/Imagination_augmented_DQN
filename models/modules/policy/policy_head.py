@@ -11,11 +11,9 @@ class policy_head(nn.Module):
         self.args = args
 
         self.network = nn.Sequential(
-            nn.Linear(6000,3000),
+            nn.Linear(768,384),
             nn.ReLU(),
-            nn.Linear(3000,1500),
-            nn.ReLU(),
-            nn.Linear(1500,args.n_actions)
+            nn.Linear(384,args.n_actions)
         )
 
     def forward(self,x):
