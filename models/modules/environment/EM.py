@@ -34,6 +34,7 @@ class environment_model(nn.Module):
         if(len(state.shape)==3):
             state = state.unsqueeze(0)
 
+
         # Create a tiled one-hot action representation, shape [batch_size,num_actions,img_height,img_width]
         action_tiled = t.zeros(state.shape[0],self.args.n_actions,state.shape[2],state.shape[3],device=device)
 
@@ -67,8 +68,6 @@ class environment_model(nn.Module):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
-
-
 
         x = self.up1(x5, x4)
         x = self.up2(x, x3)

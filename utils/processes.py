@@ -28,10 +28,6 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
 
     # Logging devices
     writer = SummaryWriter('tensorboard/col')
-    logging.basicConfig(filename='logs/collector.log',
-                                    filemode='w',
-                                    format='%(message)s',
-                                    level=logging.DEBUG)
 
 
     # Determining the processing device
@@ -84,17 +80,8 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
         # Step loop
         for e in count():
 
-            """
-            with t.no_grad():
-
-                bat = [as_tensor(state_processed,device=Device.get_device()).unsqueeze(0).permute(0,3,1,2),as_tensor(state_processed,device=Device.get_device()).unsqueeze(0).permute(0,3,1,2),as_tensor(state_processed,device=Device.get_device()).unsqueeze(0).permute(0,3,1,2)]
-                #print(bat.shape)
-                pred = model_local.models['accelerator'].predict_single_action(as_tensor(state_processed,device=Device.get_device()).unsqueeze(0).permute(0,3,1,2),0,args,Device.get_device())
-                plot_data2(bat,pred)
-            """
-
             # Get the action from the model
-            action,action_discrete = model_local.get_action(as_tensor(state_processed,device=Device.get_device()),itr,warmup_flag,writer)
+            action,action_discrete = model_local.get_action(as_tensor(state_processed,device=Device.get_device()),Device.get_device(),itr,warmup_flag,writer)
 
             # Agent step
             try:
@@ -116,6 +103,7 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
 
             # Concainating diffrent cameras
             next_state_processed = np.concatenate((next_state.front_rgb,next_state.wrist_rgb),axis=2)
+
             state_processed = np.concatenate((state.front_rgb,state.wrist_rgb),axis=2)
 
             # Storing the data in the queue
@@ -140,7 +128,6 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
                 break
 
         # Log the results
-        logging.debug('Episode reward: {:.2f}'.format(episode_reward))
         writer.add_scalar('Episode reward', episode_reward, itr)
         writer.add_scalar('Total reward',total_reward,itr)
 
@@ -152,10 +139,6 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
 
     # Logging devices
     writer = SummaryWriter('tensorboard/opt')
-    logging.basicConfig(filename='logs/optimiser.log',
-                            filemode='w',
-                            format='%(message)s',
-                            level=logging.DEBUG)
 
     # Determining the processing device
     n_gpu = t.cuda.device_count()
@@ -177,6 +160,7 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
     # Preparing the replay buffer
     buffer = ReplayBufferDQN(args)
 
+
     # Optimisation loop
     for itr in tqdm(count(), position=1, desc='optimiser'):
 
@@ -185,8 +169,7 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
             with flush_flag.get_lock():
                 flush_flag.value = False
             buffer.memory.on_episode_end()
-            if args.accelerator:
-                buffer.accelerator_memory.on_episode_end()
+            buffer.accelerator_memory.on_episode_end()
 
         # Loading the data from the queue
         buffer.load_queue(queue,lock)
@@ -201,6 +184,7 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
             time.sleep(1)
 
 
+
         # Sample a data point from dataset
         batches = buffer.sample_batch(model_local,target,Device.get_device(),beta.value)
 
@@ -210,20 +194,10 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
         # Updated the shared model
         optimise_model(model_shared,model_local,loss,lock)
 
-        # Calculate the loss values
-        loss_model = loss[0].item()
-
-        if args.accelerator:
-            loss_accelerator = loss[1].item()
-            copy_weights(target.models['accelerator'],model_local.models['accelerator'])
-        else:
-            loss_accelerator = 0
-
         # Log the results
-        logging.debug('DQN loss: {:.6f}, Accelerator loss: {:.6f}, Buffer size: {}, Beta value: {:.6f}'.format(loss_model, loss_accelerator, len(buffer),beta.value))
-        writer.add_scalar('DQN loss', loss_model,itr)
-        writer.add_scalar('Accelerator loss', loss_accelerator,itr)
-        writer.add_scalar('Beta value', beta.value,itr)
+        for key,value in loss.items():
+            writer.add_scalar(key, value.item(),itr)
+
 
         if itr % args.target_update_frequency == 0:
             target._copy_from_model(model_local)

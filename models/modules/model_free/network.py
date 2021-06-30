@@ -11,7 +11,7 @@ import torch.nn as nn
 import numpy as np
 from models.base import BaseModel
 
-class action_predictor(BaseModel):
+class action_predictor(nn.Module):
     def __init__(self,args):
         super(action_predictor,self).__init__()
 
@@ -64,7 +64,8 @@ class action_predictor(BaseModel):
             nn.Linear(4608,2304),
             nn.ReLU(),
             nn.Linear(2304,self.args.n_actions),
-            nn.Softmax(dim=1))
+            nn.Softmax(dim=1)
+            )
 
 
     def forward(self,state):
@@ -73,41 +74,18 @@ class action_predictor(BaseModel):
         if(len(state.shape)==3):
             state = state.unsqueeze(0)
 
-        action_discrete = self.network(state).argmax(dim=1)
+        action_discrete = self.network(state)
 
-        # Convert DQN discrete action to continuous
-        action = self._action_discrete_to_continous(action_discrete)
+        return action_discrete
 
-        out = [action,action_discrete]
+    def get_action(self,state):
 
+        # For a single input processing
+        if(len(state.shape)==3):
+            state = state.unsqueeze(0)
 
-        return out
+        with t.no_grad():
 
+            action_discrete = self.network(state).argmax(dim=1)
 
-
-    def _action_discrete_to_continous(self,actions):
-
-        actions_continous = list()
-
-        for a in actions.cpu().numpy():
-
-            # delta orientation
-            d_quat = np.array([0, 0, 0, 1])
-
-            # delta position
-            d_pos = np.zeros(3)
-
-            # For positive magnitude
-            if(a%2==0):
-                a_val = int(a/2)
-                d_pos[a_val] = 0.02
-
-            # For negative magnitude
-            else:
-                a_val = int((a-1)/2)
-                d_pos[a_val] = -0.02
-
-            # Forming action as expected by the environment
-            actions_continous.append(np.concatenate([d_pos, d_quat, [0]]))
-
-        return actions_continous
+        return action_discrete

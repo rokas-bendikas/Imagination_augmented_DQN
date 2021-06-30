@@ -11,6 +11,8 @@ import torch.nn.functional as f
 import time
 from cpprb import PrioritizedReplayBuffer,ReplayBuffer
 from utils.utils import queue_to_data,as_tensor
+from PIL import Image
+from torchvision import transforms
 
 
 
@@ -44,10 +46,10 @@ class ReplayBufferDQN:
         sample = self.memory.sample(self.args.batch_size,beta)
 
         # Structure to fit the network
-        states = as_tensor(sample['obs'],device=device).permute(0,3,1,2)
+        states = as_tensor(sample['obs'],device=device).permute(0,3,1,2) / 255
         actions = as_tensor(sample['act'],t.long,device=device)
         rewards = as_tensor(sample['rew'],device=device)
-        next_states = as_tensor(sample['next_obs'],device=device).permute(0,3,1,2)
+        next_states = as_tensor(sample['next_obs'],device=device).permute(0,3,1,2) / 255
         terminals = as_tensor(sample['terminal'],device=device)
 
         batch.append([states,actions,rewards,next_states,terminals])
@@ -70,27 +72,14 @@ class ReplayBufferDQN:
         sample = self.accelerator_memory.sample(self.args.batch_size)
 
         # Structure to fit the network
-        states = as_tensor(sample['obs'],device=device).permute(0,3,1,2)
+        states = as_tensor(sample['obs'],device=device).permute(0,3,1,2) / 255
         actions = as_tensor(sample['act'],t.long,device=device)
-        next_states = as_tensor(sample['next_obs'],device=device).permute(0,3,1,2)
+        next_states = as_tensor(sample['next_obs'],device=device).permute(0,3,1,2) / 255
 
         batch.append([states,actions,next_states])
 
 
         return batch
-
-    def sample_batch_accelerator(self,device):
-
-
-        # Get accelerator batch
-        sample = self.accelerator_memory.sample(self.args.batch_size)
-
-        # Structure to fit the network
-        states = as_tensor(sample['obs'],device=device).permute(0,3,1,2)
-        actions = as_tensor(sample['act'],t.long,device=device)
-        next_states = as_tensor(sample['next_obs'],device=device).permute(0,3,1,2)
-
-        return [states,actions,next_states]
 
 
     def load_queue(self,queue,lock):

@@ -1,3 +1,4 @@
+import torch as t
 import torch.nn as nn
 
 
@@ -11,9 +12,14 @@ class Imagination_Core(nn.Module):
 
     def forward(self,state,args,device,action = None):
 
-        if not action:
-            _,action = self.model_free(state)
+        self.env_model.eval()
 
-        next_state = self.env_model(state,action,device)
+        with t.no_grad():
+            if not action:
+                action = self.model_free.get_action(state)
+
+            next_state = self.env_model(state,action,device)
+
+        self.env_model.train()
 
         return next_state

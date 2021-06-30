@@ -25,6 +25,8 @@ class state_autoencoder(nn.Module):
         if(len(state.shape)==3):
             state = state.unsqueeze(0)
 
+        self.train()
+        
         x1 = self.inc(state)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
@@ -47,18 +49,21 @@ class state_autoencoder(nn.Module):
     # Predict the next state representation given a single action
     def encode(self,state):
 
+
         if(len(state.shape)==3):
             state = state.unsqueeze(0)
 
+        self.eval()
 
-        x1 = self.inc(state)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        x6 = self.down5(x5)
-        x7 = self.down6(x6)
-        encoding = x7.view(self.args.batch_size,-1)
+        with t.no_grad():
+            x1 = self.inc(state)
+            x2 = self.down1(x1)
+            x3 = self.down2(x2)
+            x4 = self.down3(x3)
+            x5 = self.down4(x4)
+            x6 = self.down5(x5)
+            x7 = self.down6(x6)
+            encoding = x7.flatten(start_dim=1)
 
         return encoding
 
