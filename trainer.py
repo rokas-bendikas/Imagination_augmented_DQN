@@ -44,7 +44,7 @@ def main():
 
     parser.add_argument('--buffer_size', default=1500, type=int, help='Buffer size [default = 180000]')
 
-    parser.add_argument('--episode_length', default=700, type=int, help='Episode length [default=900]')
+    parser.add_argument('--episode_length', default=500, type=int, help='Episode length [default=900]')
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 

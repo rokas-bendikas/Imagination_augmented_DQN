@@ -18,10 +18,10 @@ def as_tensor(x, dtype=t.float32,device=Device.get_device()):
 def data_to_queue(state, action, reward, next_state, terminal):
 
     state = as_tensor(state,device="cpu").unsqueeze(3)
-    action = as_tensor([action], t.long,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
-    reward = as_tensor([reward],device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
+    action = as_tensor([action], t.long,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
+    reward = as_tensor([reward],device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
     next_state = as_tensor(next_state,device="cpu").unsqueeze(3)
-    terminal = as_tensor([terminal],t.bool,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,6,1)
+    terminal = as_tensor([terminal],t.bool,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
 
     data = t.cat((state,action,reward,next_state,terminal),dim=3)
 

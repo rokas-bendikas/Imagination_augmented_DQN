@@ -99,6 +99,7 @@ class I2A_model:
         else:
             eps = max(0,self.args.eps)
 
+
         # Epsilon-greedy policy
         if np.random.RandomState().rand() < eps:
             action_discrete = np.random.RandomState().randint(self.args.n_actions)
@@ -136,6 +137,7 @@ class I2A_model:
 
 
         action_discrete = action
+
         """
 
 
@@ -305,7 +307,7 @@ class I2A_model:
                 d_pos[a] = -0.02
 
         # Forming action as expected by the environment
-        action = np.concatenate([d_pos, d_quat, [self.gripper_open]])
+        action = np.concatenate([d_pos, d_quat, [0]])
 
         return action
 

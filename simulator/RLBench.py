@@ -3,7 +3,7 @@ from simulator.base import BaseSimulator
 from rlbench.environment import Environment
 from rlbench.action_modes import ArmActionMode, ActionMode
 from rlbench.observation_config import ObservationConfig, CameraConfig
-from rlbench.tasks import Masters
+from rlbench.tasks import PushBoxOntoBelt
 
 
 
@@ -30,7 +30,7 @@ class RLBench(BaseSimulator):
     def launch(self):
         self.launched = True
         self.env.launch()
-        self.task = self.env.get_task(Masters)
+        self.task = self.env.get_task(PushBoxOntoBelt)
 
 
     def reset(self):

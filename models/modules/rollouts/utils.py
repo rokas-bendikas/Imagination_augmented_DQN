@@ -26,7 +26,7 @@ class state_autoencoder(nn.Module):
             state = state.unsqueeze(0)
 
         self.train()
-        
+
         x1 = self.inc(state)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
@@ -82,7 +82,7 @@ class state_autoencoder(nn.Module):
 
     def _init_encoder(self):
 
-        self.inc = DoubleConv(6,12)
+        self.inc = DoubleConv(9,12)
         self.down1 = Down(12, 24)
         self.down2 = Down(24, 48)
         self.down3 = Down(48, 96)
@@ -98,4 +98,4 @@ class state_autoencoder(nn.Module):
         self.up4 = Up(96, 48 // self.factor, self.bilinear)
         self.up5 = Up(48, 24 // self.factor, self.bilinear)
         self.up6 = Up(24, 12, self.bilinear)
-        self.outc = OutConv(12, 6)
+        self.outc = OutConv(12, 9)

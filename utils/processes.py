@@ -69,7 +69,7 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
         state = simulator.reset()
 
         # Processing state type
-        state_processed = np.concatenate((state.front_rgb,state.wrist_rgb),axis=2)
+        state_processed = np.concatenate((state.front_rgb,state.left_shoulder_rgb,state.right_shoulder_rgb),axis=2)
 
         # Episode reward counter
         episode_reward = 0
@@ -102,9 +102,9 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
             counts_failed = 0
 
             # Concainating diffrent cameras
-            next_state_processed = np.concatenate((next_state.front_rgb,next_state.wrist_rgb),axis=2)
+            next_state_processed = np.concatenate((next_state.front_rgb,next_state.left_shoulder_rgb,next_state.right_shoulder_rgb),axis=2)
 
-            state_processed = np.concatenate((state.front_rgb,state.wrist_rgb),axis=2)
+            state_processed = np.concatenate((state.front_rgb,state.left_shoulder_rgb,state.right_shoulder_rgb),axis=2)
 
             # Storing the data in the queue
             lock.acquire()

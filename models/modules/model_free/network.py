@@ -18,7 +18,7 @@ class action_predictor(nn.Module):
         self.args = args
 
 
-        self.in_channels = 6
+        self.in_channels = 9
 
 
         self.network = nn.Sequential(
