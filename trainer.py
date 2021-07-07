@@ -34,7 +34,7 @@ def main():
 
     parser.add_argument('--lr', default=5e-6, type=float, help='Learning rate for the training [default = 5e-6]')
 
-    parser.add_argument('--batch_size', default=32, type=int, help='Batch size for the training [default = 128]')
+    parser.add_argument('--batch_size', default=64, type=int, help='Batch size for the training [default = 128]')
 
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
 
@@ -52,7 +52,7 @@ def main():
 
     parser.add_argument('--num_rollouts', default=3, type=int, help='How many rollouts to perform [default=3]')
 
-    parser.add_argument('--warmup', default=0, type=int, help='How many full exploration iterations [default=10]')
+    parser.add_argument('--warmup', default=50, type=int, help='How many full exploration iterations [default=10]')
 
     parser.add_argument('--plot', default=False, type=str2bool, help='Plot the accelerator predictions? [default=False]')
 

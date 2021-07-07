@@ -16,7 +16,7 @@ def optimise_model(shared_model, local_model, loss, lock):
 
     # Compute gradients
     [l.backward() for l in loss.values()]
-    
+
     # Step in the model
     [o.step() for o in local_model.optimisers.values()]
 

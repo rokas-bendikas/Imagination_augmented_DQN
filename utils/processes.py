@@ -15,7 +15,7 @@ from tqdm import tqdm
 from utils.device import Device
 import time
 import numpy as np
-from utils.utils import as_tensor,data_to_queue,copy_weights,plot_data2
+from utils.utils import data_to_queue,copy_weights,plot_data2
 from utils.replay_buffer import ReplayBufferDQN
 from utils.optimise_model import optimise_model
 from rlbench.task_environment import InvalidActionError
@@ -69,7 +69,7 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
         state = simulator.reset()
 
         # Processing state type
-        state_processed = np.concatenate((state.front_rgb,state.left_shoulder_rgb,state.right_shoulder_rgb),axis=2)
+        state_processed = np.concatenate((state.front_rgb,state.left_shoulder_rgb,state.right_shoulder_rgb),axis=2).transpose(2,0,1)
 
         # Episode reward counter
         episode_reward = 0
@@ -81,7 +81,7 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
         for e in count():
 
             # Get the action from the model
-            action,action_discrete = model_local.get_action(as_tensor(state_processed,device=Device.get_device()),Device.get_device(),itr,warmup_flag,writer)
+            action,action_discrete = model_local.get_action(t.tensor(state_processed,device=Device.get_device(),dtype=t.float32).unsqueeze(0),Device.get_device(),itr,warmup_flag,writer)
 
             # Agent step
             try:
@@ -101,10 +101,11 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
             # Reset the failure count
             counts_failed = 0
 
-            # Concainating diffrent cameras
-            next_state_processed = np.concatenate((next_state.front_rgb,next_state.left_shoulder_rgb,next_state.right_shoulder_rgb),axis=2)
 
-            state_processed = np.concatenate((state.front_rgb,state.left_shoulder_rgb,state.right_shoulder_rgb),axis=2)
+            # Concainating diffrent cameras
+            next_state_processed = np.concatenate((next_state.front_rgb,next_state.left_shoulder_rgb,next_state.right_shoulder_rgb),axis=2).transpose(2,0,1)
+
+            state_processed = np.concatenate((state.front_rgb,state.left_shoulder_rgb,state.right_shoulder_rgb),axis=2).transpose(2,0,1)
 
             # Storing the data in the queue
             lock.acquire()
@@ -169,27 +170,30 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
             with flush_flag.get_lock():
                 flush_flag.value = False
             buffer.memory.on_episode_end()
-            buffer.accelerator_memory.on_episode_end()
+
+
+        # During warmup
+        if (warmup_flag.value):
+
+            buffer.load_queue_warmup(queue,lock)
+
+            while (len(buffer) <= 2*args.episode_length):
+                # Loading the data from the queue
+                buffer.load_queue_warmup(queue,lock)
+
+            autoencoder_batch = buffer.sample_batch(warmup_flag.value,Device.get_device(),beta.value)
+
+            model_local.train_autoencoder(autoencoder_batch,writer,itr)
+            continue
 
         # Loading the data from the queue
         buffer.load_queue(queue,lock)
 
-        # During warmup
-        while (warmup_flag.value):
-
-            # Loading the data from the queue
-            buffer.load_queue(queue,lock)
-
-            # Avoid high number of iteration when training without the accelerator
-            time.sleep(1)
-
-
-
         # Sample a data point from dataset
-        batches = buffer.sample_batch(model_local,target,Device.get_device(),beta.value)
+        batch = buffer.sample_batch(warmup_flag.value,Device.get_device(),beta.value,model_local,target)
 
         # Calculate loss for the batch
-        loss = model_local.get_losses(batches,target,Device.get_device())
+        loss = model_local.get_losses(batch,target,Device.get_device())
 
         # Updated the shared model
         optimise_model(model_shared,model_local,loss,lock)

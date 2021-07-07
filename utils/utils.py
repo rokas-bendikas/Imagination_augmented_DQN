@@ -10,30 +10,31 @@ def copy_weights(target, source):
 
     target.load_state_dict(deepcopy(source.state_dict()))
 
-def as_tensor(x, dtype=t.float32,device=Device.get_device()):
-    return t.tensor(x, dtype=dtype, device=device,requires_grad=False)
-
 
 
 def data_to_queue(state, action, reward, next_state, terminal):
 
-    state = as_tensor(state,device="cpu").unsqueeze(3)
-    action = as_tensor([action], t.long,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
-    reward = as_tensor([reward],device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
-    next_state = as_tensor(next_state,device="cpu").unsqueeze(3)
-    terminal = as_tensor([terminal],t.bool,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
+    state = t.tensor(state,device="cpu").unsqueeze(0)
 
-    data = t.cat((state,action,reward,next_state,terminal),dim=3)
+    action = t.tensor([action], dtype=t.long,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(1,9,96,96)
+
+    reward = t.tensor([reward],device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(1,9,96,96)
+
+    next_state = t.tensor(next_state,device="cpu").unsqueeze(0)
+
+    terminal = t.tensor([terminal],dtype=t.bool,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(1,9,96,96)
+
+    data = t.cat((state,action,reward,next_state,terminal),dim=0)
 
     return data
 
 def queue_to_data(data):
 
-    state = data[:,:,:,0]
-    action = data[0,0,0,1]
-    reward = data[0,0,0,2]
-    next_state = data[:,:,:,3]
-    terminal = data[0,0,0,4]
+    state = data[0,:,:,:]
+    action = data[1,0,0,0]
+    reward = data[2,0,0,0]
+    next_state = data[3,:,:,:]
+    terminal = data[4,0,0,0]
 
     return (state,action,reward,next_state,terminal)
 
@@ -55,24 +56,24 @@ def checkpoint(shared_model, args,warmup_flag,lock):
         print('exiting checkpoint')
 
 
-def plot_data(batch,predicted):
+def plot_autoencoder(state,predicted):
 
-    s = batch[0]
-    ns = batch[2]
+    img1 = state[:,0:3,:,:]
+    img2 = state[:,3:6,:,:]
+    img3 = state[:,6:9,:,:]
 
-    img1 = s[:,0:3,:,:]
-    img2 = s[:,3:6,:,:]
-
-    img3 = ns[:,0:3,:,:]
-    img4 = ns[:,3:6,:,:]
+    img4 = predicted[:,0:3,:,:]
+    img5 = predicted[:,3:6,:,:]
+    img6 = predicted[:,6:9,:,:]
 
 
     save_image(make_grid(img1), './plots/img1.png')
     save_image(make_grid(img2), './plots/img2.png')
     save_image(make_grid(img3), './plots/img3.png')
     save_image(make_grid(img4), './plots/img4.png')
-    save_image(make_grid(predicted[:,0:3,:,:]), './plots/model1.png')
-    save_image(make_grid(predicted[:,3:6,:,:]), './plots/model2.png')
+    save_image(make_grid(img5), './plots/img5.png')
+    save_image(make_grid(img6), './plots/img6.png')
+
 
 def plot_data2(batch,predicted):
 
