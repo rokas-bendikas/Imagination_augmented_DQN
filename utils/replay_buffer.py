@@ -14,6 +14,7 @@ from utils.utils import queue_to_data
 from PIL import Image
 from torchvision import transforms
 import time
+from copy import deepcopy
 
 
 
@@ -44,25 +45,27 @@ class ReplayBufferDQN:
         next_states = t.tensor(sample['next_obs'],device=device) / 255
         terminals = t.tensor(sample['terminal'],dtype=t.bool,device=device)
 
+        weights = None
+
         if not warmup:
 
-            print('here')
-
             with t.no_grad():
+
                 # Calculate the loss to determine utility
-                target = rewards + terminals * self.args.gamma * target_net(next_states,device).max()
+                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states,device).max()
                 predicted = model(states,device).gather(1,actions)
 
-
-            new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').cpu().numpy()
+            new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').cpu().numpy().squeeze()
 
             # Get the indices of the samples
             indexes = sample["indexes"]
 
+            weights = t.tensor(deepcopy(sample['weights']),device=device).unsqueeze(dim=1)
+
             self.memory.update_priorities(indexes,new_priorities)
 
 
-        return (states,actions,rewards,next_states,terminals)
+        return (states,actions,rewards,next_states,terminals,weights)
 
 
     def load_queue(self,queue,lock):

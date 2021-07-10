@@ -8,14 +8,17 @@ class PolicyHead(BaseModel):
         super().__init__()
 
         self.network = nn.Sequential(
-            nn.Linear(1536,768),
+            nn.Linear(4608,2304),
             nn.LeakyReLU(0.2),
-            nn.Linear(768,384),
+            nn.Linear(2304,1152),
             nn.LeakyReLU(0.2),
-            nn.Linear(384,args.n_actions),
+            nn.Linear(1152,576),
+            nn.LeakyReLU(0.2),
+            nn.Linear(576,args.n_actions),
         )
 
     def forward(self,x):
+
 
         out = self.network(x)
 

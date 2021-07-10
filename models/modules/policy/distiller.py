@@ -17,9 +17,9 @@ class ActionDistiller(BaseModel):
 
         self.network = nn.Sequential(
 
-            nn.Linear(256,512),
+            nn.Linear(768,1024),
             nn.LeakyReLU(0.2),
-            nn.Linear(512,1024),
+            nn.Linear(1024,1024),
             nn.LeakyReLU(0.2),
             nn.Linear(1024,2048),
             nn.LeakyReLU(0.2),

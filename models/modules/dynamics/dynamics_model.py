@@ -21,15 +21,15 @@ class DynamicsModel(nn.Module):
 
         # Init network modules
         self.model = nn.Sequential(
-            nn.Linear(512,1024),
+            nn.Linear(1024,1024),
             nn.LeakyReLU(0.2),
             nn.Linear(1024,2048),
             nn.LeakyReLU(0.2),
+            nn.Linear(2048,2048),
+            nn.LeakyReLU(0.2),
             nn.Linear(2048,1024),
             nn.LeakyReLU(0.2),
-            nn.Linear(1024,512),
-            nn.LeakyReLU(0.2),
-            nn.Linear(512,256),
+            nn.Linear(1024,768),
             nn.ReLU())
 
 

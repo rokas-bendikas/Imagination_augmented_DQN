@@ -24,7 +24,7 @@ from pyrep.errors import ConfigurationPathError
 #t.multiprocessing.set_sharing_strategy('file_system')
 
 
-def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
+def collect_DQN(NETWORK,simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
 
     # Logging devices
     writer = SummaryWriter('tensorboard/col')
@@ -35,10 +35,14 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
     if n_gpu > 0:
         Device.set_device(1 % n_gpu)
 
+
+    # Creating a local model
+    model_local = NETWORK(args)
+
     # Copying the shared model
-    lock.acquire()
-    model_local = deepcopy(model_shared)
-    lock.release()
+    #lock.acquire()
+    model_local._copy_from_model(model_shared)
+    #lock.release()
 
     # Preparing the local model
     model_local.to(Device.get_device())
@@ -87,16 +91,18 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
             try:
                 next_state, reward, terminal = simulator.step(action)
 
+
             # Handling failure in planning and wrong action for inverse Jacobian
             except (ConfigurationPathError,InvalidActionError):
                 # If failed multiple times reseting the environment
                 if counts_failed == 4:
                     break
+                    print("Breaking!")
                 # Otherwise increase the count and try another action
                 else:
                     counts_failed += 1
                     continue
-                break
+
 
             # Reset the failure count
             counts_failed = 0
@@ -120,6 +126,7 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
 
             # Early termination conditions
             if (terminal or (e>args.episode_length)):
+                print("Terminal!")
                 with flush_flag.get_lock():
                     flush_flag.value = True
                 if not warmup_flag.value:
@@ -136,7 +143,7 @@ def collect_DQN(simulator,model_shared,queue,args,flush_flag,warmup_flag,beta,lo
 
 
 
-def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
+def optimise_DQN(NETWORK,model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
 
     # Logging devices
     writer = SummaryWriter('tensorboard/opt')
@@ -147,13 +154,22 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
         Device.set_device(0 % n_gpu)
 
     # Copying the shared model
+
+    model_local = NETWORK(args)
+
+
+
+
+
+    # Updating local model
     lock.acquire()
-    model_local = deepcopy(model_shared)
+    model_local._copy_from_model(model_shared)
     lock.release()
+
+
 
     # Preparing the local model
     model_local.to(Device.get_device())
-    model_local.load()
 
     # Preparing the target network
     target = deepcopy(model_local)
@@ -177,11 +193,12 @@ def optimise_DQN(model_shared,queue,args,flush_flag,warmup_flag,beta,lock):
 
             buffer.load_queue_warmup(queue,lock)
 
-            while (len(buffer) <= 2*args.episode_length):
+            while (len(buffer) <= args.batch_size):
+
                 # Loading the data from the queue
                 buffer.load_queue_warmup(queue,lock)
 
-            autoencoder_batch = buffer.sample_batch(warmup_flag.value,Device.get_device(),beta.value)
+            autoencoder_batch = buffer.sample_batch(warmup_flag.value,Device.get_device(),1)
 
             model_local.train_autoencoder(autoencoder_batch,writer,itr)
             continue

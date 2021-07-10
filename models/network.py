@@ -41,7 +41,7 @@ class I2A_model:
         out = self.forward(x,device)
         return out
 
-
+    
 
     def forward(self,x,device):
 
@@ -84,6 +84,7 @@ class I2A_model:
         # Tensorboard logs for epsilon
         if itr is not None:
             writer.add_scalar('Epsilon value',eps,itr)
+
 
         # Epsilon-greedy policy
         if np.random.RandomState().rand() < eps:
@@ -174,7 +175,7 @@ class I2A_model:
 
         loss = dict()
 
-        for key, value in self.models['encoder'].get_loss(batches).items():
+        for key, value in self.models['encoder'].get_loss(batch).items():
             loss[key] = value
 
         return loss
@@ -183,20 +184,20 @@ class I2A_model:
 
     def _loss_policy_head(self,batch,target,device):
 
-        state, action, reward, next_state, terminal = batch
+        state, action, reward, next_state, terminal, weights = batch
 
         loss = dict()
 
         # Target value
         with t.no_grad():
-            target = reward + terminal * self.args.gamma * target(next_state,device).max()
+            target = reward + (1 - terminal.int()) * self.args.gamma * target(next_state,device).max()
 
         # Network output
         predicted = self(state,device).gather(1,action)
 
-        loss['policy'] = f.smooth_l1_loss(predicted, target)
+        loss_DQN = f.smooth_l1_loss(predicted, target,reduction='none')
 
-
+        loss['policy'] = (loss_DQN*weights).sum()
 
         return loss
 
@@ -204,7 +205,7 @@ class I2A_model:
 
         loss = dict()
 
-        state, action, _, next_state,_ = batch
+        state, action, _, next_state,_,_ = batch
 
         state = self.models['encoder'].encode(state)
         next_state = self.models['encoder'].encode(next_state)
@@ -220,7 +221,7 @@ class I2A_model:
 
     def _loss_distiller(self,batch,device):
 
-        state, action, _, _, _ = batch
+        state, action, _, _, _,_ = batch
 
         model_actions = t.zeros_like(action)
 
@@ -242,7 +243,7 @@ class I2A_model:
     ##############################################################################################
 
 
-    def _init_models(self)->None:
+    def _init_models(self):
 
         self.models['encoder'] = StateEncoder(self.args)
         self.models['policy'] = PolicyHead(self.args)
@@ -252,7 +253,7 @@ class I2A_model:
         if not self.testing:
 
             # State autoencoder optimiser
-            self.optimisers['encoder'] = t.optim.Adam(self.models['encoder'].parameters(), lr=1e-5)
+            self.optimisers['encoder'] = t.optim.Adam(self.models['encoder'].parameters(), lr=1e-4)
 
             # Action predictor optimiser
             self.optimisers['distiller'] = t.optim.Adam(self.models['distiller'].parameters(), lr=1e-6)
@@ -297,7 +298,7 @@ class I2A_model:
 
     def _aggregate_rollouts(self,rollout_list,device):
 
-        rollouts = t.zeros((self.args.batch_size,self.args.n_actions,256),device=device)
+        rollouts = t.zeros((self.args.batch_size,self.args.n_actions,768),device=device)
 
         for idx,val in enumerate(rollout_list):
             rollouts[:,idx,:] = val
