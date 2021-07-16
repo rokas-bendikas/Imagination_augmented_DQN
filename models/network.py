@@ -8,7 +8,6 @@ from models.modules.policy.policy_head import PolicyHead
 from models.base import BaseModel
 from utils.utils import copy_weights
 import numpy as np
-from utils.device import Device
 import getch
 
 
@@ -41,7 +40,7 @@ class I2A_model:
         out = self.forward(x,device)
         return out
 
-    
+
 
     def forward(self,x,device):
 
@@ -59,8 +58,7 @@ class I2A_model:
             action_tensor = t.full((state.shape[0],1),action,device=device)
 
             # Rollout
-            rollouts.append(self.models['rollouts'](state,action_tensor,Device.get_device()))
-
+            rollouts.append(self.models['rollouts'](state,action_tensor,device))
 
         encoding = self._aggregate_rollouts(rollouts,device)
 
@@ -69,7 +67,7 @@ class I2A_model:
         return Q_values
 
     # Converting netwomse_rk outputs to discrete actions:
-    def get_action(self,state,device,itr=None,warmup_flag=None,writer=None,greedy=False):
+    def get_action(self,state,device,itr=None,warmup=None,writer=None,greedy=False):
 
         ###############################
         ############ DQN ##############
@@ -79,7 +77,7 @@ class I2A_model:
             print("Action is produced per single state representation, shape of 1x9x96x96!")
             raise ValueError
 
-        eps = self._get_eps(greedy,warmup_flag,itr)
+        eps = self._get_eps(greedy,warmup,itr)
 
         # Tensorboard logs for epsilon
         if itr is not None:
@@ -123,8 +121,8 @@ class I2A_model:
 
 
         action_discrete = action
-
         """
+
 
 
         # Convert DQN discrete action to continuous
@@ -256,7 +254,7 @@ class I2A_model:
             self.optimisers['encoder'] = t.optim.Adam(self.models['encoder'].parameters(), lr=1e-4)
 
             # Action predictor optimiser
-            self.optimisers['distiller'] = t.optim.Adam(self.models['distiller'].parameters(), lr=1e-6)
+            self.optimisers['distiller'] = t.optim.Adam(self.models['distiller'].parameters(), lr=1e-4)
 
             # Envirnment model optimiser
             self.optimisers['dynamics'] = t.optim.Adam(self.models['rollouts'].dynamics_model.parameters(), lr=5e-5)
@@ -264,7 +262,7 @@ class I2A_model:
             # Policy head and transformer head
             params = list(self.models['policy'].parameters()) + list(self.models['rollouts'].lstm.parameters())
 
-            self.optimisers['policy'] = t.optim.Adam(self.models['policy'].parameters(), lr=1e-6)
+            self.optimisers['policy'] = t.optim.Adam(params, lr=1e-5)
 
             # Epsilon linear annealing
             self.epsilon_step = self.args.eps/self.args.num_episodes
@@ -272,6 +270,11 @@ class I2A_model:
     ##############################################################################################
     ###################################### General UTILS #########################################
     ##############################################################################################
+
+    def share_memory(self):
+
+        [self.models[key].share_memory() for key in self.models]
+
 
     def save(self):
 
@@ -289,8 +292,16 @@ class I2A_model:
 
         if self.args.load_model != '':
 
-            [self.models[model_name].load(self.args.load_model+model_name+'.pts') for model_name in self.models]
-            print("Models were loaded successfully!")
+            for model_name in self.models:
+                try:
+                    self.models[model_name].load(self.args.load_model+model_name+'.pts')
+                    print("{} was loaded successfully!".format(model_name))
+
+                except Exception:
+                    print("{} could not be loaded!".format(model_name))
+
+
+
 
     def eval(self):
         [self.models[model_name].eval() for model_name in self.models]
@@ -335,32 +346,20 @@ class I2A_model:
     def _copy_from_model(self,source_model):
         [copy_weights(target,source) for target,source in zip(self.models.values(),source_model.models.values())]
 
-    def _get_eps(self,greedy,warmup_flag,itr):
+    def _get_eps(self,greedy,warmup,itr):
 
-        if greedy:
+        # Greedy epsilon
+        if greedy or self.testing:
             eps = max(0,self.args.eps)
 
-        # Epsilon-greedy for DQN
-        elif not self.testing:
-            # During warmup
-            if (itr < self.args.warmup):
-                eps = 1
+        # Fully random
+        elif warmup:
+            eps = 1
 
-            # After warmup
-            else:
-
-                # Shared flag for the end of warmup
-                if warmup_flag.value:
-                    with warmup_flag.get_lock():
-                        warmup_flag.value = False
-
-                # Updating decay parameters
-                epsilon = self.args.eps - (itr-self.args.warmup)*self.epsilon_step
-                eps = max(epsilon, self.args.min_eps)
-
-
+        # Decaying epsilon
         else:
-            eps = max(0,self.args.eps)
-
+            # Updating decay parameters
+            epsilon = self.args.eps - (itr-self.args.warmup)*self.epsilon_step
+            eps = max(epsilon, self.args.min_eps)
 
         return eps

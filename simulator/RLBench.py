@@ -22,16 +22,6 @@ class RLBench(BaseSimulator):
         # Environment params
         self.env = Environment(self.action_mode, obs_config=self.obs_config, headless=h)
 
-        # Flags
-        self.launched=False
-        self.counts_failed = 0
-
-
-    def launch(self):
-        self.launched = True
-        self.env.launch()
-        self.task = self.env.get_task(PushBoxOntoBelt)
-
 
     def reset(self):
 
@@ -41,17 +31,19 @@ class RLBench(BaseSimulator):
 
     def step(self, action):
 
-
         s, r, t = self.task.step(action)
 
-
         return s, r, t
+
+    def launch(self):
+
+        self.env.launch()
+        self.task = self.env.get_task(PushBoxOntoBelt)
+
 
     @staticmethod
     def n_actions():
         return 6
 
-
     def __del__(self):
-        if self.launched:
-            self.env.shutdown()
+        self.env.shutdown()

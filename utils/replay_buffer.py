@@ -10,7 +10,7 @@ import torch as t
 import torch.nn.functional as f
 import time
 from cpprb import PrioritizedReplayBuffer,ReplayBuffer
-from utils.utils import queue_to_data
+from utils.utils import process_batch
 from PIL import Image
 from torchvision import transforms
 import time
@@ -33,10 +33,13 @@ class ReplayBufferDQN:
         self.args = args
 
 
-    def sample_batch(self,warmup,device,beta,model=None,target_net=None):
+    def sample_batch(self,warmup,device,beta,model=None,target_net=None,batch_size=None,update_weights=True):
+
+        if batch_size==None:
+            batch_size = self.args.batch_size
 
         # Get the priotatized batch
-        sample = self.memory.sample(self.args.batch_size,beta)
+        sample = self.memory.sample(batch_size,beta)
 
         # Structure to fit the network
         states = t.tensor(sample['obs'],device=device) / 255
@@ -47,7 +50,7 @@ class ReplayBufferDQN:
 
         weights = None
 
-        if not warmup:
+        if update_weights:
 
             with t.no_grad():
 
@@ -68,74 +71,21 @@ class ReplayBufferDQN:
         return (states,actions,rewards,next_states,terminals,weights)
 
 
-    def load_queue(self,queue,lock):
 
-        # Count of samples loaded
-        num_loaded = 0
+    def append(self,batch):
 
-        # Load until reaching batch size
-        while num_loaded < self.args.batch_size:
+        state,action,reward,next_state,terminal = process_batch(batch)
 
-
-            # If the queue is not empty
-            if not queue.empty():
-
-                # Increasing loaded sample count
-                num_loaded += 1
-
-                # Read from the queue
-                lock.acquire()
-                data = queue_to_data(queue.get())
-                lock.release()
-
-                # Expand
-                state = data[0]
-                action = data[1]
-                reward = data[2]
-                next_state = data[3]
-                terminal = data[4]
+        # Store for replay buffer
+        self.memory.add(obs=state,
+                        act=action,
+                        rew=reward,
+                        next_obs=next_state,
+                        terminal=terminal)
 
 
-                # Store for replay buffer
-                self.memory.add(obs=state,
-                                act=action,
-                                rew=reward,
-                                next_obs=next_state,
-                                terminal=terminal)
-
-                # Set the buffer current length
-                self.length = min(self.args.buffer_size,self.length+1)
-
-
-    def load_queue_warmup(self,queue,lock):
-
-        # Load until reaching batch size
-        for i in range(queue.qsize()):
-
-
-            # Read from the queue
-            lock.acquire()
-            data = queue_to_data(queue.get())
-            lock.release()
-
-            # Expand
-            state = data[0]
-            action = data[1]
-            reward = data[2]
-            next_state = data[3]
-            terminal = data[4]
-
-
-            # Store for replay buffer
-            self.memory.add(obs=state,
-                            act=action,
-                            rew=reward,
-                            next_obs=next_state,
-                            terminal=terminal)
-
-            # Set the buffer current length
-            self.length = min(self.args.buffer_size,self.length+1)
-
+        # Set the buffer current length
+        self.length = min(self.args.buffer_size,self.length+1)
 
 
     def __len__(self):
