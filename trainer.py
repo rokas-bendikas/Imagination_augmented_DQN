@@ -9,6 +9,7 @@ import torch.multiprocessing as mp
 
 
 
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -47,17 +48,17 @@ def main():
 
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
 
-    parser.add_argument('--eps', default=1, type=float, help='Greedy constant for the training [default = 1]')
+    parser.add_argument('--eps', default=0.85, type=float, help='Greedy constant for the training [default = 1]')
 
     parser.add_argument('--min_eps', default=0.1, type=float, help='Minimum value for greedy constant [default = 0.1]')
 
-    parser.add_argument('--buffer_size', default=140000, type=int, help='Buffer size [default = 140000]')
+    parser.add_argument('--buffer_size', default=250000, type=int, help='Buffer size [default = 140000]')
 
     parser.add_argument('--episode_length', default=900, type=int, help='Episode length [default=900]')
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 
-    parser.add_argument('--num_episodes', default=750, type=int, help='How many episodes to plan for (used for decay parameters) [default=750]')
+    parser.add_argument('--num_episodes', default=628, type=int, help='How many episodes to plan for (used for decay parameters) [default=750]')
 
     parser.add_argument('--num_rollouts', default=7, type=int, help='How many rollouts to perform [default=3]')
 

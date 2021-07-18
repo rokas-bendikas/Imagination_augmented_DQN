@@ -13,7 +13,7 @@ from itertools import count
 from tqdm import tqdm
 import time
 import numpy as np
-from utils.utils import copy_weights,process_state
+from utils.utils import copy_weights,process_state,rgb_to_grayscale
 from utils.replay_buffer import ReplayBufferDQN
 from rlbench.task_environment import InvalidActionError
 from pyrep.errors import ConfigurationPathError
@@ -23,7 +23,6 @@ from copy import deepcopy
 
 def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock):
 
-    # Logging devices
     writer = SummaryWriter('tensorboard/col')
 
     # Determining the processing device
@@ -63,6 +62,8 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock):
     encoder_itr = 0
     training_itr = 0
 
+
+
     # MAIN TRAINING LOOP
     for itr in tqdm(count(), position=0, desc='Epochs'):
 
@@ -73,7 +74,7 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock):
         state = simulator.reset()
 
         # Processing state type
-        state_processed = process_state(state,device)
+        state_processed = rgb_to_grayscale(process_state(state,device))
 
         ##################################################################
         ####################### EXPLORATION PART #########################
@@ -101,8 +102,8 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock):
                 terminal = False
 
             # Concainating diffrent cameras
-            next_state_processed = process_state(next_state,device)
-            state_processed = process_state(state,device)
+            next_state_processed = rgb_to_grayscale(process_state(next_state,device))
+            state_processed = rgb_to_grayscale(process_state(state,device))
 
             # Storing the data in the buffer
             buffer.append([state_processed, action_discrete, reward, next_state_processed, terminal])
@@ -172,6 +173,3 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock):
         lock.acquire()
         model_shared._copy_from_model(model)
         lock.release()
-
-
-    writer.close()

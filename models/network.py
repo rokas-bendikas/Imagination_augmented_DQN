@@ -121,8 +121,8 @@ class I2A_model:
 
 
         action_discrete = action
-        """
 
+        """
 
 
         # Convert DQN discrete action to continuous
@@ -231,7 +231,7 @@ class I2A_model:
 
         distiller_actions = self.models['distiller'](self.models['encoder'].encode(state))
 
-        loss = {'distiller': f.cross_entropy(distiller_actions,model_actions.squeeze())}
+        loss = {'distiller': f.nll_loss(distiller_actions,model_actions.squeeze())}
 
         return loss
 
@@ -254,7 +254,7 @@ class I2A_model:
             self.optimisers['encoder'] = t.optim.Adam(self.models['encoder'].parameters(), lr=1e-4)
 
             # Action predictor optimiser
-            self.optimisers['distiller'] = t.optim.Adam(self.models['distiller'].parameters(), lr=1e-4)
+            self.optimisers['distiller'] = t.optim.Adam(self.models['distiller'].parameters(), lr=1e-3)
 
             # Envirnment model optimiser
             self.optimisers['dynamics'] = t.optim.Adam(self.models['rollouts'].dynamics_model.parameters(), lr=5e-5)

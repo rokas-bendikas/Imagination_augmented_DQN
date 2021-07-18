@@ -34,7 +34,7 @@ class ActionDistiller(BaseModel):
             nn.Linear(512,256),
             nn.LeakyReLU(0.2),
             nn.Linear(256,args.n_actions),
-            nn.Softmax(dim=1))
+            nn.LogSoftmax(dim=1))
 
 
     def forward(self,state):

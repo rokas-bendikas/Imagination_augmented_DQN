@@ -22,7 +22,7 @@ class ReplayBufferDQN:
     def __init__(self,args):
 
         self.memory = PrioritizedReplayBuffer(args.buffer_size,
-                              {"obs": {"shape": (9,96,96)},
+                              {"obs": {"shape": (3,96,96)},
                                "act": {},
                                "rew": {},
                                "terminal": {}},

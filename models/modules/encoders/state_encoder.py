@@ -17,13 +17,13 @@ class StateEncoder(BaseModel):
 
         self.train()
 
-        encoding1 = self.encoder(state[:,:3,:,:])
+        encoding1 = self.encoder(state[:,0,:,:].unsqueeze(1))
         out1 = self.decoder(encoding1)
 
-        encoding2 = self.encoder(state[:,3:6,:,:])
+        encoding2 = self.encoder(state[:,1,:,:].unsqueeze(1))
         out2 = self.decoder(encoding2)
 
-        encoding3 = self.encoder(state[:,6:9,:,:])
+        encoding3 = self.encoder(state[:,2,:,:].unsqueeze(1))
         out3 = self.decoder(encoding3)
 
         batch_decoded = t.cat((out1,out2,out3),dim=1)
@@ -39,9 +39,10 @@ class StateEncoder(BaseModel):
         self.eval()
 
         with t.no_grad():
-            out1 = self.encoder(state[:,:3,:,:])
-            out2 = self.encoder(state[:,3:6,:,:])
-            out3 = self.encoder(state[:,6:9,:,:])
+
+            out1 = self.encoder(state[:,0,:,:].unsqueeze(1))
+            out2 = self.encoder(state[:,1,:,:].unsqueeze(1))
+            out3 = self.encoder(state[:,2,:,:].unsqueeze(1))
 
         encoding = t.cat((out1,out2,out3),dim=1)
         return encoding
@@ -61,8 +62,8 @@ class StateEncoder(BaseModel):
     def _init_network(self):
 
         self.encoder = nn.Sequential(
-                # batch_size x 3 x 96 x 96
-                DoubleConv(3,9),
+                # batch_size x 1 x 96 x 96
+                DoubleConv(1,9),
                 # batch_size x 9 x 96 x 96
                 Down(9,18),
                 # batch_size x 18 x 48 x 48
@@ -105,6 +106,6 @@ class StateEncoder(BaseModel):
                 # batch_size x 18 x 48 x 48
                 Up(18,9),
                 # batch_size x 9 x 96 x 96
-                OutConv(9,3)
-                # batch_size x 3 x 96 x 96
+                OutConv(9,1)
+                # batch_size x 1 x 96 x 96
                 )
