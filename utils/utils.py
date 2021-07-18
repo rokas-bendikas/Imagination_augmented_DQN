@@ -1,94 +1,80 @@
 import torch as t
-from utils.device import Device
 import time
 from datetime import datetime
 from copy import deepcopy
 from torchvision.utils import save_image,make_grid
+import numpy as np
 
 
 def copy_weights(target, source):
-
-    target.load_state_dict(deepcopy(source.state_dict()))
-
-def as_tensor(x, dtype=t.float32,device=Device.get_device()):
-    return t.tensor(x, dtype=dtype, device=device,requires_grad=False)
+    target.load_state_dict(source.state_dict())
 
 
+def rgb_to_grayscale(image_rgb):
 
-def data_to_queue(state, action, reward, next_state, terminal):
+    img1 = image_rgb[0:3,:,:]
+    img2 = image_rgb[3:6,:,:]
+    img3 = image_rgb[6:9,:,:]
 
-    state = as_tensor(state,device="cpu").unsqueeze(3)
-    action = as_tensor([action], t.long,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
-    reward = as_tensor([reward],device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
-    next_state = as_tensor(next_state,device="cpu").unsqueeze(3)
-    terminal = as_tensor([terminal],t.bool,device="cpu").unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(96,96,9,1)
+    img1_gray = img1[0,:,:] / 3 + img1[1,:,:] / 3 + img1[2,:,:] / 3
+    img2_gray = img2[0,:,:] / 3 + img2[1,:,:] / 3 + img2[2,:,:] / 3
+    img3_gray = img3[0,:,:] / 3 + img3[1,:,:] / 3 + img3[2,:,:] / 3
 
-    data = t.cat((state,action,reward,next_state,terminal),dim=3)
+    img_gray = np.stack((img1_gray,img2_gray,img3_gray),axis=0)
 
-    return data
+    return img_gray
 
-def queue_to_data(data):
 
-    state = data[:,:,:,0]
-    action = data[0,0,0,1]
-    reward = data[0,0,0,2]
-    next_state = data[:,:,:,3]
-    terminal = data[0,0,0,4]
+def process_state(state,device):
+    state_processed = np.concatenate((state.front_rgb,state.overhead_rgb,state.wrist_rgb),axis=2).transpose(2,0,1) 
+
+    return state_processed
+
+def process_batch(batch):
+
+    state,action,reward,next_state,terminal = batch
+
+    state = t.tensor(state, dtype=t.float32,device="cpu")
+
+    action = t.tensor([action], dtype=t.long,device="cpu")
+
+    reward = t.tensor([reward],device="cpu")
+
+    next_state = t.tensor(next_state, dtype=t.float32,device="cpu")
+
+    terminal = t.tensor([terminal],dtype=t.bool,device="cpu")
 
     return (state,action,reward,next_state,terminal)
 
 
-def checkpoint(shared_model, args,warmup_flag,lock):
+def checkpoint(shared_model, args,lock):
     try:
         while True:
             time.sleep(args.checkpoint_frequency * 60)
 
-            if not warmup_flag.value:
-                # Save model
-                now = datetime.now().strftime("%d_%m_%H_%M")
-
-                lock.acquire()
-                [shared_model.models[key].save(args.save_model+'{}_{}.pts'.format(key,now)) for key in shared_model.models]
-                lock.release()
+            # Save model
+            now = datetime.now().strftime("%d_%m_%H_%M")
+            lock.acquire()
+            [shared_model.models[key].save(args.save_model+'{}_{}.pts'.format(key,now)) for key in shared_model.models]
+            lock.release()
 
     except KeyboardInterrupt:
         print('exiting checkpoint')
 
 
-def plot_data(batch,predicted):
+def plot_autoencoder(state,predicted):
 
-    s = batch[0]
-    ns = batch[2]
+    img1 = state[:,0,:,:].unsqueeze(1)
+    img2 = state[:,1,:,:].unsqueeze(1)
+    img3 = state[:,2,:,:].unsqueeze(1)
 
-    img1 = s[:,0:3,:,:]
-    img2 = s[:,3:6,:,:]
-
-    img3 = ns[:,0:3,:,:]
-    img4 = ns[:,3:6,:,:]
-
+    img4 = predicted[:,0,:,:].unsqueeze(1)
+    img5 = predicted[:,1,:,:].unsqueeze(1)
+    img6 = predicted[:,2,:,:].unsqueeze(1)
 
     save_image(make_grid(img1), './plots/img1.png')
     save_image(make_grid(img2), './plots/img2.png')
     save_image(make_grid(img3), './plots/img3.png')
     save_image(make_grid(img4), './plots/img4.png')
-    save_image(make_grid(predicted[:,0:3,:,:]), './plots/model1.png')
-    save_image(make_grid(predicted[:,3:6,:,:]), './plots/model2.png')
-
-def plot_data2(batch,predicted):
-
-    s = batch[0]
-    ns = batch[2]
-
-    img1 = s[:,0:3,:,:]
-    img2 = s[:,3:6,:,:]
-
-    img3 = ns[:,0:3,:,:]
-    img4 = ns[:,3:6,:,:]
-
-
-    save_image(make_grid(img1), './plots2/img1.png')
-    save_image(make_grid(img2), './plots2/img2.png')
-    save_image(make_grid(img3), './plots2/img3.png')
-    save_image(make_grid(img4), './plots2/img4.png')
-    save_image(make_grid(predicted[:,0:3,:,:]), './plots2/model1.png')
-    save_image(make_grid(predicted[:,3:6,:,:]), './plots2/model2.png')
+    save_image(make_grid(img5), './plots/img5.png')
+    save_image(make_grid(img6), './plots/img6.png')
