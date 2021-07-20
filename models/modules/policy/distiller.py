@@ -16,37 +16,26 @@ class ActionDistiller(BaseModel):
         super().__init__()
 
         self.network = nn.Sequential(
-
-            nn.Linear(768,1024),
-            nn.LeakyReLU(0.2),
-            nn.Linear(1024,1024),
-            nn.LeakyReLU(0.2),
-            nn.Linear(1024,2048),
-            nn.LeakyReLU(0.2),
-            nn.Linear(2048,4096),
-            nn.LeakyReLU(0.2),
-            nn.Linear(4096,2048),
-            nn.LeakyReLU(0.2),
-            nn.Linear(2048,1024),
-            nn.LeakyReLU(0.2),
-            nn.Linear(1024,512),
-            nn.LeakyReLU(0.2),
-            nn.Linear(512,256),
-            nn.LeakyReLU(0.2),
-            nn.Linear(256,args.n_actions),
-            nn.LogSoftmax(dim=1))
+            nn.Linear(768,384),
+            nn.ReLU(),
+            nn.Linear(384,192),
+            nn.ReLU(),
+            nn.Linear(192,args.n_actions))
 
 
     def forward(self,state):
 
-        action_discrete = self.network(state)
+        out = self.network(state)
 
-        return action_discrete
+        return out
 
     def get_action(self,state):
 
+        ###############################
+        ############ DQN ##############
+        ###############################
+
         with t.no_grad():
+            action = self(state).argmax(dim=1)
 
-            action_discrete = self.network(state).argmax(dim=1)
-
-        return action_discrete.unsqueeze(1)
+        return action.unsqueeze(1)

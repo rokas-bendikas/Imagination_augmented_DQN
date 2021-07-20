@@ -74,7 +74,7 @@ class I2A_model:
         ###############################
 
         if ((state.shape[0] != 1) or (len(state.shape) != 4)):
-            print("Action is produced per single state representation, shape of 1x9x96x96!")
+            print("Action is produced per single state representation, shape of 1x3x96x96!")
             raise ValueError
 
         eps = self._get_eps(greedy,warmup,itr)
@@ -164,7 +164,7 @@ class I2A_model:
             losses[key] = value
 
         # Loss of model-free path
-        for key, value in self._loss_distiller(batch,device).items():
+        for key, value in self._loss_distiller(batch,target,device).items():
             losses[key] = value
 
         return losses
@@ -180,7 +180,7 @@ class I2A_model:
 
 
 
-    def _loss_policy_head(self,batch,target,device):
+    def _loss_policy_head(self,batch,target_model,device):
 
         state, action, reward, next_state, terminal, weights = batch
 
@@ -188,7 +188,7 @@ class I2A_model:
 
         # Target value
         with t.no_grad():
-            target = reward + (1 - terminal.int()) * self.args.gamma * target(next_state,device).max()
+            target = reward + (1 - terminal.int()) * self.args.gamma * target_model(next_state,device).max()
 
         # Network output
         predicted = self(state,device).gather(1,action)
@@ -217,21 +217,23 @@ class I2A_model:
 
 
 
-    def _loss_distiller(self,batch,device):
+    def _loss_distiller(self,batch,target_model,device):
 
-        state, action, _, _, _,_ = batch
+        state, action, reward, next_state, terminal, weights = batch
 
-        model_actions = t.zeros_like(action)
+        state = self.models['encoder'].encode(state)
+        next_state = self.models['encoder'].encode(next_state)
 
-        for i in range(state.shape[0]):
+        # Target value
+        with t.no_grad():
+            target = reward + (1 - terminal.int()) * self.args.gamma * target_model.models['distiller'](next_state).max()
 
-            _,predicted_action = self.get_action(state[i,:,:,:].unsqueeze(0),device,greedy=True)
+        # Network output
+        predicted = self.models['distiller'](state).gather(1,action)
 
-            model_actions[i] = predicted_action
+        loss_DQN = f.smooth_l1_loss(predicted, target,reduction='none')
 
-        distiller_actions = self.models['distiller'](self.models['encoder'].encode(state))
-
-        loss = {'distiller': f.nll_loss(distiller_actions,model_actions.squeeze())}
+        loss = {'distiller': (loss_DQN*weights).sum()}
 
         return loss
 
@@ -254,7 +256,7 @@ class I2A_model:
             self.optimisers['encoder'] = t.optim.Adam(self.models['encoder'].parameters(), lr=1e-4)
 
             # Action predictor optimiser
-            self.optimisers['distiller'] = t.optim.Adam(self.models['distiller'].parameters(), lr=1e-3)
+            self.optimisers['distiller'] = t.optim.Adam(self.models['distiller'].parameters(), lr=1e-5)
 
             # Envirnment model optimiser
             self.optimisers['dynamics'] = t.optim.Adam(self.models['rollouts'].dynamics_model.parameters(), lr=5e-5)

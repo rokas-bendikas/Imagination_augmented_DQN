@@ -38,7 +38,7 @@ def main():
 
     parser.add_argument('--save_model', default='./checkpoints/', help='Path to save the model [default = "./checkpoints/"]')
 
-    parser.add_argument('--load_model', default='./checkpoints/', help='Path to load the model [default = '']')
+    parser.add_argument('--load_model', default='', help='Path to load the model [default = '']')
 
     parser.add_argument('--target_update_frequency', default=10, type=int, help='Frequency for syncing target network [default = 10]')
 
@@ -48,7 +48,7 @@ def main():
 
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
 
-    parser.add_argument('--eps', default=0.85, type=float, help='Greedy constant for the training [default = 1]')
+    parser.add_argument('--eps', default=1, type=float, help='Greedy constant for the training [default = 1]')
 
     parser.add_argument('--min_eps', default=0.1, type=float, help='Minimum value for greedy constant [default = 0.1]')
 
@@ -58,11 +58,11 @@ def main():
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 
-    parser.add_argument('--num_episodes', default=628, type=int, help='How many episodes to plan for (used for decay parameters) [default=750]')
+    parser.add_argument('--num_episodes', default=700, type=int, help='How many episodes to plan for (used for decay parameters) [default=750]')
 
     parser.add_argument('--num_rollouts', default=7, type=int, help='How many rollouts to perform [default=3]')
 
-    parser.add_argument('--warmup', default=5, type=int, help='How many full exploration iterations [default=10]')
+    parser.add_argument('--warmup', default=50, type=int, help='How many full exploration iterations [default=10]')
 
     parser.add_argument('--plot', default=True, type=str2bool, help='Plot the accelerator predictions? [default=False]')
 

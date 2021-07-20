@@ -15,7 +15,7 @@ class ImaginationCore(nn.Module):
         with t.no_grad():
 
             if action==None:
-                action = self.distiller.get_action(state).detach()
+                action = self.distiller.get_action(state)
 
             next_state = self.dynamics_model(state,action)
 

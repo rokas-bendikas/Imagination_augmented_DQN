@@ -54,9 +54,12 @@ class ReplayBufferDQN:
 
             with t.no_grad():
 
+                states_enc = model.models['encoder'].encode(states)
+                next_states_enc = model.models['encoder'].encode(next_states)
+
                 # Calculate the loss to determine utility
-                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states,device).max()
-                predicted = model(states,device).gather(1,actions)
+                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net.models['distiller'](next_states_enc).max()
+                predicted = model.models['distiller'](states_enc).gather(1,actions)
 
             new_priorities = f.smooth_l1_loss(predicted, target,reduction='none').cpu().numpy().squeeze()
 
