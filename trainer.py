@@ -48,19 +48,17 @@ def main():
 
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
 
-    parser.add_argument('--eps', default=0.99, type=float, help='Greedy constant for the training [default = 1]')
-
     parser.add_argument('--min_eps', default=0.1, type=float, help='Minimum value for greedy constant [default = 0.1]')
 
-    parser.add_argument('--buffer_size', default=3000, type=int, help='Buffer size [default = 200000]')
+    parser.add_argument('--buffer_size', default=3000, type=int, help='Buffer size [default = 300000]')
 
-    parser.add_argument('--episode_length', default=200, type=int, help='Episode length [default=800]')
+    parser.add_argument('--episode_length', default=200, type=int, help='Episode length [default=200]')
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 
-    parser.add_argument('--num_episodes', default=1000, type=int, help='How many episodes to plan for (used for decay parameters) [default=100]')
+    parser.add_argument('--num_episodes', default=1000, type=int, help='How many episodes to plan for (used for decay parameters) [default=1000]')
 
-    parser.add_argument('--warmup', default=3, type=int, help='How many full exploration iterations [default=5]')
+    parser.add_argument('--warmup', default=0, type=int, help='How many full exploration iterations [default=50]')
 
     parser.add_argument('--plot', default=True, type=str2bool, help='Plot the accelerator predictions? [default=False]')
 

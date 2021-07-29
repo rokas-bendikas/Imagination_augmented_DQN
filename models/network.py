@@ -2,12 +2,13 @@ import torch as t
 import torch.nn.functional as f
 import torch.nn as nn
 from torch.optim.lr_scheduler import ExponentialLR
-from models.modules.encoders.state_encoder import StateEncoder
-from models.modules.policy.DQN import DqnModel
-from models.base import BaseModel
 from utils.utils import copy_weights
 import numpy as np
 import getch
+import math
+from models.modules.encoders.state_encoder import StateEncoder
+from models.modules.policy.DQN import DqnModel
+
 
 
 
@@ -421,11 +422,8 @@ class I2A_model:
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
-                lr=1e-5)
+                lr=1e-6)
 
-
-            # Epsilon linear annealing
-            self.epsilon_step = self.args.eps/self.args.num_episodes
 
     ##############################################################################################
     ########################################## UTILS #############################################
@@ -576,8 +574,7 @@ class I2A_model:
         # Decaying epsilon
         else:
             # Updating decay parameters
-            #epsilon = self.args.eps - (itr-self.args.warmup)*self.epsilon_step
-            epsilon = self.args.eps**(itr-self.args.warmup)
+            epsilon = 1/math.exp(itr/(self.args.num_episodes/3))
             eps = max(epsilon, self.args.min_eps)
 
         return eps
