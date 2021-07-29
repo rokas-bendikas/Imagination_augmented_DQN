@@ -43,7 +43,7 @@ class RLBench(BaseSimulator):
 
     @staticmethod
     def n_actions():
-        return 6
+        return 4
 
     def __del__(self):
         self.env.shutdown()

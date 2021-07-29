@@ -1,72 +1,72 @@
 import torch as t
-from utils.device import Device
-from utils.utils import as_tensor,plot_data2
 import numpy as np
 from rlbench.task_environment import InvalidActionError
 from pyrep.errors import ConfigurationPathError
-
+from copy import deepcopy
+from utils.utils import process_state,rgb_to_grayscale
 
 
 def perform(NETWORK,simulator,args):
-    
-    
+
+
     # allocate a device
-    n_gpu = t.cuda.device_count()
-    if n_gpu > 0:
-        Device.set_device(0)
-    
+    device = t.device("cuda" if t.cuda.is_available() else "cpu")
+
+    if device.type == 'cuda':
+        print("Using CUDA device:")
+        print(t.cuda.get_device_name())
+
     model = NETWORK(args,testing = True)
     model.load()
-    model.to(Device.get_device())
+    model.to(device)
     model.eval()
-    
+
+    # Target network
+    target = deepcopy(model)
+
     num_reached = 0
-    
+
     simulator.launch()
-    
+
     for n in range(args.n_tests):
-        
-    
+
+
         state = simulator.reset()
-        state_processed = np.concatenate((state.front_rgb,state.wrist_rgb),axis=2)
-            
+
+        state_processed = rgb_to_grayscale(process_state(state,device))
+
         episode_reward = 0
-        
+
         terminal = False
-        
+
         for i in range(args.episode_length):
-         
-            bat = [as_tensor(state_processed,device=Device.get_device()).unsqueeze(0).permute(0,3,1,2),as_tensor(state_processed,device=Device.get_device()).unsqueeze(0).permute(0,3,1,2),as_tensor(state_processed,device=Device.get_device()).unsqueeze(0).permute(0,3,1,2)]
-            #print(bat.shape)
-            pred = model.models['accelerator'].predict_single_action(as_tensor(state_processed,device=Device.get_device()).unsqueeze(0).permute(0,3,1,2),0,args,Device.get_device())
-            plot_data2(bat,pred)
-    
-            action,_ = model.get_action(as_tensor(state_processed,device=Device.get_device()))
-            
+
+            # Process the state to fit the network
+            state_tensor = t.tensor(state_processed,device=device,dtype=t.float32).unsqueeze(0)
+
+            action,_ = model.get_action(state_tensor,device,target)
+
             try:
                 next_state, reward, terminal = simulator.step(action)
             except (ConfigurationPathError,InvalidActionError):
-                continue
-            
+                next_state = state
+                reward = -0.5
+                terminal = False
+
+
+
+            # Concainating diffrent cameras
+            next_state_processed = rgb_to_grayscale(process_state(next_state,device))
+            state_processed = rgb_to_grayscale(process_state(state,device))
+
             episode_reward += reward
-                        
-            state_processed = np.concatenate((next_state.front_rgb,next_state.wrist_rgb),axis=2)
             state = next_state
-            
+
             if (terminal):
                 print("\nTrial {} reached the goal!".format(n+1))
                 num_reached += 1
                 break
-            	
+
         print("\nEpisode reward: {}".format(episode_reward))
-        
+
     print("\n\nSuccess rate: {}/{}".format(num_reached,args.n_tests))
-        
-    
-        
-                
-            
-       
-    
-   
-        

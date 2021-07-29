@@ -7,7 +7,7 @@ import numpy as np
 
 
 def copy_weights(target, source):
-    target.load_state_dict(source.state_dict())
+    target.load_state_dict(deepcopy(source.state_dict()))
 
 
 def rgb_to_grayscale(image_rgb):
@@ -26,7 +26,7 @@ def rgb_to_grayscale(image_rgb):
 
 
 def process_state(state,device):
-    state_processed = np.concatenate((state.front_rgb,state.overhead_rgb,state.wrist_rgb),axis=2).transpose(2,0,1) 
+    state_processed = np.concatenate((state.front_rgb,state.overhead_rgb,state.wrist_rgb),axis=2).transpose(2,0,1)
 
     return state_processed
 
@@ -62,19 +62,12 @@ def checkpoint(shared_model, args,lock):
         print('exiting checkpoint')
 
 
-def plot_autoencoder(state,predicted):
+def plot_batch(state):
 
     img1 = state[:,0,:,:].unsqueeze(1)
     img2 = state[:,1,:,:].unsqueeze(1)
     img3 = state[:,2,:,:].unsqueeze(1)
 
-    img4 = predicted[:,0,:,:].unsqueeze(1)
-    img5 = predicted[:,1,:,:].unsqueeze(1)
-    img6 = predicted[:,2,:,:].unsqueeze(1)
-
     save_image(make_grid(img1), './plots/img1.png')
     save_image(make_grid(img2), './plots/img2.png')
     save_image(make_grid(img3), './plots/img3.png')
-    save_image(make_grid(img4), './plots/img4.png')
-    save_image(make_grid(img5), './plots/img5.png')
-    save_image(make_grid(img6), './plots/img6.png')

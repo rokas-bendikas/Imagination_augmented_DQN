@@ -12,19 +12,31 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
-        
-def run_DQN(args):
-    
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--environment', default='RLBench', help='Environment to use for training [default = RLBench]')
+    parser.add_argument('--n_tests', default=10,  type=int, help='How many times to run the simulation [default = 10]')
+    parser.add_argument('--load_model', default='./checkpoints/', help='Path to load the model [default = ./checkpoints/]')
+    parser.add_argument('--episode_length', default=150, type=int, help='Episode length [default=600]')
+    parser.add_argument('--accelerator', default=True, type=str2bool, help='Use model-based accelerator [default=True]')
+    parser.add_argument('--eps', default=0.1, type=float, help='Greedy constant for the training [default = 0.1]')
+    parser.add_argument('--num_rollouts', default=7, type=int, help='How many rollouts to perform [default=7]')
+
+    args = parser.parse_args()
+
     SIMULATOR, NETWORK = environments[args.environment]
-    
+
     simulator = SIMULATOR(False)
     args.n_actions = simulator.n_actions()
-    
+
     performer = mp.Process(target=perform,args=(NETWORK,simulator,args))
-    
+
     performer.start()
-    
-    
+
+
     try:
         performer.join()
     except KeyboardInterrupt:
@@ -33,45 +45,3 @@ def run_DQN(args):
         print(e)
     finally:
         performer.kill()
-    
-   
-    
-def run_A2C(args):
-    
-    SIMULATOR, NETWORK = environments[args.environment]
-    
-    simulator = SIMULATOR(False)
-    args.n_actions = simulator.n_actions()
-    simulator.launch()
-        
-    try:
-        perform(NETWORK,simulator,args)
-    except KeyboardInterrupt:
-        print('<< EXITING >>')
-    
-if __name__ == '__main__':
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--environment', default='RLBench', help='Environment to use for training [default = RLBench]')
-    parser.add_argument('--n_tests', default=10,  type=int, help='How many times to run the simulation [default = 10]')
-    parser.add_argument('--load_model', default='./checkpoints/', help='Path to load the model [default = ./checkpoints/]')
-    parser.add_argument('--episode_length', default=600, type=int, help='Episode length [default=600]')
-    parser.add_argument('--accelerator', default=True, type=str2bool, help='Use model-based accelerator [default=True]')
-    parser.add_argument('--model', default="DQN", type=str, help='What model to use [default="DQN"]')
-    parser.add_argument('--eps', default=0.1, type=float, help='Greedy constant for the training [default = 0.1]')
-
-    args = parser.parse_args()
-
-    
-    if args.model == "DQN":
-        
-        run_DQN(args)
-            
-        
-    elif args.model =="A2C":
-        run_A2C(args)
-    else:
-        raise ValueError
-
-            
-        
