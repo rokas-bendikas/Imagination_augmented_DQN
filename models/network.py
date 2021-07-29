@@ -574,7 +574,7 @@ class I2A_model:
         # Decaying epsilon
         else:
             # Updating decay parameters
-            epsilon = 1/math.exp(itr/(self.args.num_episodes/3))
+            epsilon = 1/math.exp((itr-self.args.warmup)/(self.args.num_episodes/3))
             eps = max(epsilon, self.args.min_eps)
 
         return eps

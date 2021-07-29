@@ -61,8 +61,7 @@ class ReplayBufferDQN:
 
             with t.no_grad():
 
-
-                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states).max(dim=1)[0]
+                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states).max(dim=1,keepdim=True)[0]
 
                 predicted = model(states).gather(1,actions)
 
