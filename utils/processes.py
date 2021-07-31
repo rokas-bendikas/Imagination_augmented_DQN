@@ -98,8 +98,6 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
         # Episode reward counter
         episode_reward = 0
 
-        counter = 0
-
         # Exploration loop
         for e in count():
 
@@ -111,23 +109,12 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
             # Agent step
             try:
                 next_state, reward, terminal = simulator.step(action)
-                counter = 0
 
             # Handling failure in planning and wrong action for inverse Jacobian
             except (ConfigurationPathError,InvalidActionError):
                 next_state = state
-                reward = -0.1
+                reward = -0.5
                 terminal = False
-                counter += 1
-
-                if counter >= 3:
-                    # Reseting the counter
-                    counter = 0
-                    # Reseting the scene
-                    state = simulator.reset()
-                    # Processing state type
-                    state_processed = rgb_to_grayscale(process_state(state,device))
-                    continue
 
             # Concainating diffrent cameras
             next_state_processed = rgb_to_grayscale(process_state(next_state,device))
@@ -145,8 +132,9 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
             # Early termination conditions
             if (terminal or (e>args.episode_length)):
                 buffer.memory.on_episode_end()
-                beta += beta_step
-                beta = min(beta,1)
+                if not warmup:
+                    beta += beta_step
+                    beta = min(beta,1)
                 break
 
             ##################################################################
@@ -185,6 +173,7 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
         # Log the results
         writer.add_scalar('Episode reward', episode_reward, itr)
         writer.add_scalar('Total reward',total_reward,itr)
+        writer.add_scalar('Beta',beta,itr)
 
 
 

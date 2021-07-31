@@ -1,7 +1,7 @@
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as f
-from models.modules.encoders.utils import DoubleConv,Down,Up,OutConv
+from models.modules.encoders.utils import DoubleConv,Down,Up
 from models.base import BaseModel
 
 class StateEncoder(BaseModel):
@@ -50,25 +50,25 @@ class StateEncoder(BaseModel):
 
         # The encoder network
         self.encoder = nn.Sequential(
-                # batch_size x 3 x 96 x 96
-                DoubleConv(3,9),
-                # batch_size x 9 x 96 x 96
-                Down(9,18),
-                # batch_size x 18 x 48 x 48
-                Down(18,36),
-                # batch_size x 36 x 24 x 24
-                Down(36,72),
-                # batch_size x 72 x 12 x 12
-                Down(72,144),
-                # batch_size x 144 x 6 x 6
-                Down(144,288),
-                # batch_size x 288 x 3 x 3
-                Down(288,576),
-                # batch_size x 576 x 1 x 1
-                nn.Flatten(),
+                # batch_size x 4 x 128 x 128
+                DoubleConv(4,8),
+                # batch_size x 8 x 128 x 128
+                Down(8,16),
+                # batch_size x 16 x 64 x 64
+                Down(16,32),
+                # batch_size x 32 x 32 x 32
+                Down(32,64),
+                # batch_size x 64 x 16 x 16
+                Down(64,128),
+                # batch_size x 128 x 8 x 8
+                Down(128,256),
+                # batch_size x 256 x 4 x 4
+                Down(256,512),
+                # batch_size x 512 x 2 x 2
+                nn.Flatten())
                 # batch_size x 576
-                nn.Linear(576,256))
-                # batch_size x 256
+
+
 
 
     def forward(self,state)->t.tensor:
@@ -86,8 +86,6 @@ class StateEncoder(BaseModel):
             out : torch.tensor
                 An encoded shape representation in shape (batch_size,256)
         """
-
-        self.train()
 
         out = self.encoder(state)
 
@@ -110,8 +108,6 @@ class StateEncoder(BaseModel):
                 An encoded shape representation in shape (batch_size,256)
         """
 
-
-        self.eval()
 
         with t.no_grad():
 

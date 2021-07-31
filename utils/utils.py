@@ -15,18 +15,22 @@ def rgb_to_grayscale(image_rgb):
     img1 = image_rgb[0:3,:,:]
     img2 = image_rgb[3:6,:,:]
     img3 = image_rgb[6:9,:,:]
+    img4 = image_rgb[9:12,:,:]
+
 
     img1_gray = img1[0,:,:] / 3 + img1[1,:,:] / 3 + img1[2,:,:] / 3
     img2_gray = img2[0,:,:] / 3 + img2[1,:,:] / 3 + img2[2,:,:] / 3
     img3_gray = img3[0,:,:] / 3 + img3[1,:,:] / 3 + img3[2,:,:] / 3
+    img4_gray = img4[0,:,:] / 3 + img4[1,:,:] / 3 + img4[2,:,:] / 3
 
-    img_gray = np.stack((img1_gray,img2_gray,img3_gray),axis=0)
+
+    img_gray = np.stack((img1_gray,img2_gray,img3_gray,img4_gray),axis=0)
 
     return img_gray
 
 
 def process_state(state,device):
-    state_processed = np.concatenate((state.front_rgb,state.overhead_rgb,state.wrist_rgb),axis=2).transpose(2,0,1)
+    state_processed = np.concatenate((state.front_rgb,state.overhead_rgb,state.right_shoulder_rgb,state.left_shoulder_rgb),axis=2).transpose(2,0,1)
 
     return state_processed
 
@@ -67,7 +71,10 @@ def plot_batch(state):
     img1 = state[:,0,:,:].unsqueeze(1)
     img2 = state[:,1,:,:].unsqueeze(1)
     img3 = state[:,2,:,:].unsqueeze(1)
+    img4 = state[:,3,:,:].unsqueeze(1)
+
 
     save_image(make_grid(img1), './plots/img1.png')
     save_image(make_grid(img2), './plots/img2.png')
     save_image(make_grid(img3), './plots/img3.png')
+    save_image(make_grid(img4), './plots/img4.png')

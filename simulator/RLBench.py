@@ -11,8 +11,9 @@ class RLBench(BaseSimulator):
     def __init__(self,h=False):
 
         # Camera params
-        cam = CameraConfig(image_size=(96, 96))
-        self.obs_config = ObservationConfig(front_camera=cam,overhead_camera=cam,wrist_camera=cam)
+        #cam = CameraConfig(image_size=(96, 96))
+        #self.obs_config = ObservationConfig(front_camera=cam,overhead_camera=cam,wrist_camera=cam,left_shoulder_camera=cam,right_shoulder_camera=cam)
+        self.obs_config = ObservationConfig()
         self.obs_config.set_all(True)
 
         # delta EE control with motion planning

@@ -12,10 +12,10 @@ class DoubleConv(nn.Module):
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=5, padding=2),
             nn.BatchNorm2d(mid_channels),
-            nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Conv2d(mid_channels, out_channels, kernel_size=5, padding=2),
             nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU(0.2)
+            nn.ReLU()
         )
 
     def forward(self, x):
@@ -29,7 +29,9 @@ class Down(nn.Module):
 
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(kernel_size=2,stride=2),
-            DoubleConv(in_channels, out_channels)
+            nn.Conv2d(in_channels, out_channels, kernel_size=5, padding=2),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU()
         )
 
     def forward(self, x):
@@ -44,19 +46,12 @@ class Up(nn.Module):
 
         self.up = nn.Sequential(
             nn.ConvTranspose2d(in_channels , out_channels, kernel_size=5, stride=2,padding=2,output_padding=1),
-            DoubleConv(out_channels, out_channels))
+            nn.Conv2d(in_channels, out_channels, kernel_size=5, padding=2),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU())
 
     def forward(self, x):
 
         out = self.up(x)
 
         return out
-
-class OutConv(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(OutConv, self).__init__()
-        self.sigmoid = nn.Sigmoid()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
-
-    def forward(self, x):
-        return self.sigmoid(self.conv(x))

@@ -22,13 +22,16 @@ from copy import deepcopy
 class ReplayBufferDQN:
     def __init__(self,args):
 
+
         self.memory = PrioritizedReplayBuffer(args.buffer_size,
-                              {"obs": {"shape": (3,96,96)},
+                              {"obs": {"shape": (4,128,128)},
                                "act": {},
                                "rew": {},
                                "terminal": {}},
-                              alpha=0.5,
+                              alpha=0.6,
                               next_of="obs")
+
+
 
         self.length = 0
         self.args = args
@@ -40,7 +43,8 @@ class ReplayBufferDQN:
             batch_size = self.args.batch_size
 
         # Get the priotatized batch
-        sample = self.memory.sample(batch_size,beta)
+        #sample = self.memory.sample(batch_size,beta)
+        sample = self.memory.sample(batch_size)
 
         # Structure to fit the network
         states = t.tensor(sample['obs'],device=device) / 255
@@ -52,6 +56,7 @@ class ReplayBufferDQN:
         if self.args.plot:
             plot_batch(states)
 
+        
         weights = t.tensor(sample['weights'],device=device).unsqueeze(dim=1)
 
         # Get the indices of the samples
@@ -65,9 +70,10 @@ class ReplayBufferDQN:
 
                 predicted = model(states).gather(1,actions)
 
-            new_priorities = f.mse_loss(predicted, target,reduction='none') + 1e-5
+            new_priorities = (predicted - target)**2
 
             self.memory.update_priorities(indices,new_priorities.squeeze().cpu().numpy())
+
 
         return (states,actions,rewards,next_states,terminals,weights)
 

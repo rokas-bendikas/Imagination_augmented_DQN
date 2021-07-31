@@ -40,7 +40,7 @@ def main():
 
     parser.add_argument('--load_model', default='', help='Path to load the model [default = '']')
 
-    parser.add_argument('--target_update_frequency', default=1000, type=int, help='Frequency for syncing target network [default = 1000]')
+    parser.add_argument('--target_update_frequency', default=10, type=int, help='Frequency for syncing target network [default = 10]')
 
     parser.add_argument('--checkpoint_frequency', default=60, type=int, help='Frequency for creating checkpoints [default = 60]')
 
@@ -52,13 +52,13 @@ def main():
 
     parser.add_argument('--buffer_size', default=150000, type=int, help='Buffer size [default = 150000]')
 
-    parser.add_argument('--episode_length', default=200, type=int, help='Episode length [default=200]')
+    parser.add_argument('--episode_length', default=300, type=int, help='Episode length [default=200]')
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 
     parser.add_argument('--num_episodes', default=500, type=int, help='How many episodes to plan for (used for decay parameters) [default=500]')
 
-    parser.add_argument('--warmup', default=50, type=int, help='How many full exploration iterations [default=50]')
+    parser.add_argument('--warmup', default=25, type=int, help='How many full exploration iterations [default=50]')
 
     parser.add_argument('--plot', default=True, type=str2bool, help='Plot the accelerator predictions? [default=False]')
 

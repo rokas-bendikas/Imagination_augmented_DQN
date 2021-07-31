@@ -16,11 +16,9 @@ class DqnModel(BaseModel):
         super().__init__()
 
         self.network = nn.Sequential(
-            nn.Linear(256,128),
+            nn.Linear(2048,1024),
             nn.ReLU(),
-            nn.Linear(128,64),
-            nn.ReLU(),
-            nn.Linear(64,args.n_actions))
+            nn.Linear(1024,args.n_actions))
 
 
     def forward(self,state):

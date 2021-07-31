@@ -48,10 +48,14 @@ def perform(NETWORK,simulator,args):
 
             try:
                 next_state, reward, terminal = simulator.step(action)
+
             except (ConfigurationPathError,InvalidActionError):
                 next_state = state
                 reward = -0.5
                 terminal = False
+
+
+            print(reward)
 
 
 

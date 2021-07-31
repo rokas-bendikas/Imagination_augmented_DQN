@@ -8,7 +8,7 @@ import getch
 import math
 from models.modules.encoders.state_encoder import StateEncoder
 from models.modules.policy.DQN import DqnModel
-
+import time
 
 
 
@@ -125,7 +125,7 @@ class I2A_model:
             print("Input shape is not correct!")
             raise TypeError
 
-        encoding = self.models['encoder'].encode(x)
+        encoding = self.models['encoder'](x)
 
         Q_values = self.models['DQN'](encoding)
 
@@ -184,7 +184,9 @@ class I2A_model:
             action_discrete = np.random.randint(0,self.args.n_actions)
         else:
             with t.no_grad():
+                self.eval()
                 action_discrete = t.argmax(self(state)).item()
+                self.train()
 
 
 
@@ -391,6 +393,25 @@ class I2A_model:
         [self.models[model_name].eval() for model_name in self.models]
 
 
+    def train(self)->None:
+
+        """
+        Sets all the modules to eval() mode.
+
+        Parameters
+        ----------
+            None
+
+
+        Returns
+        -------
+            None
+
+        """
+
+        [self.models[model_name].train() for model_name in self.models]
+
+
     ##############################################################################################
     ######################################## INITS ###############################################
     ##############################################################################################
@@ -422,7 +443,7 @@ class I2A_model:
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
-                lr=1e-6)
+                lr=5e-5)
 
 
     ##############################################################################################
@@ -460,8 +481,7 @@ class I2A_model:
         # Network output
         predicted = self(state).gather(1,action)
 
-        loss_DQN = f.mse_loss(predicted, target,reduction='none')
-
+        loss_DQN = (predicted - target)**2
         loss = {'DQN': t.mean(loss_DQN*weights)}
 
         return loss
@@ -576,5 +596,6 @@ class I2A_model:
             # Updating decay parameters
             epsilon = 1/math.exp((itr-self.args.warmup)/(self.args.num_episodes/3))
             eps = max(epsilon, self.args.min_eps)
+
 
         return eps
