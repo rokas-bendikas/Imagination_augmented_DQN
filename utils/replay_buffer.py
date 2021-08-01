@@ -65,11 +65,11 @@ class ReplayBufferDQN:
 
             with t.no_grad():
 
-                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states).max(dim=1,keepdim=True)[0]
+                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states,device).max(dim=1,keepdim=True)[0]
 
-                predicted = model(states).gather(1,actions)
+                predicted = model(states,device).gather(1,actions)
 
-            new_priorities = t.abs(predicted - target)
+            new_priorities = f.smooth_l1_loss(predicted, target,reduction='none')
 
             self.memory.update_priorities(indices,new_priorities.squeeze().cpu().numpy())
 

@@ -8,6 +8,8 @@ import getch
 import math
 from models.modules.encoders.state_encoder import StateEncoder
 from models.modules.policy.DQN import DqnModel
+from models.modules.imagination.rollout_module import RolloutEngine
+from models.modules.policy.policy_head import PolicyHead
 import time
 
 
@@ -103,7 +105,7 @@ class I2A_model:
 
 
 
-    def forward(self,x):
+    def forward(self,x,device):
 
         """
         Forward network pass.
@@ -125,9 +127,21 @@ class I2A_model:
             print("Input shape is not correct!")
             raise TypeError
 
-        encoding = self.models['encoder'](x)
+        encoding = self.models['encoder'].encode(x).detach()
 
-        Q_values = self.models['DQN'](encoding)
+        # List of all rollouts
+        rollouts = list()
+
+        for action in range(self.args.n_actions):
+
+            action_tensor = t.full((encoding.shape[0],1),action,device=device)
+
+            # Rollout
+            rollouts.append(self.models['rollouts'](encoding,self.models['DQN'],action_tensor,device))
+
+        encoded_trajectories = self._aggregate_rollouts(rollouts,encoding,device)
+
+        Q_values = self.models['policy'](encoded_trajectories)
 
         return Q_values
 
@@ -184,7 +198,7 @@ class I2A_model:
             action_discrete = np.random.randint(0,self.args.n_actions)
         else:
             with t.no_grad():
-                action_discrete = t.argmax(self(state)).item()
+                action_discrete = t.argmax(self(state,device)).item()
 
 
 
@@ -229,6 +243,35 @@ class I2A_model:
         return [action,action_discrete]
 
 
+    def train_warmup(self,target_model,batch,writer,itr,device)->None:
+
+
+        ############################################################
+        #################### TRAINING DQN ##########################
+        ############################################################
+
+        self.optimisers['DQN'].zero_grad()
+
+        for key, value in self._loss_DQN(batch,target_model).items():
+            value.backward()
+            writer.add_scalar(key, value.item(),itr)
+
+        self.optimisers['DQN'].step()
+
+        ############################################################
+        ################## TRAINING DYNAMICS #######################
+        ############################################################
+
+        self.optimisers['rollouts'].zero_grad()
+
+        for key, value in self._loss_rollout_module(batch,target_model,device).items():
+            value.backward()
+            writer.add_scalar(key, value.item(),itr)
+
+        self.optimisers['rollouts'].step()
+
+
+
     def get_losses(self,batch,target,device)->dict:
 
         """
@@ -258,6 +301,15 @@ class I2A_model:
         # Loss of model-free path
         for key, value in self._loss_DQN(batch,target).items():
             losses[key] = value
+
+        # Loss of the policy networks
+        for key, value in self._loss_policy_head(batch,target,device).items():
+            losses[key] = value
+
+        # Loss of the rollout modules
+        for key, value in self._loss_rollout_module(batch,target,device).items():
+            losses[key] = value
+
 
         return losses
 
@@ -433,20 +485,49 @@ class I2A_model:
 
         self.models['encoder'] = StateEncoder(self.args)
         self.models['DQN'] = DqnModel(self.args)
+        self.models['rollouts'] = RolloutEngine(self.args)
+        self.models['policy'] = PolicyHead(self.args)
 
         if not self.testing:
 
-
-            # DQN for the imagination core
+            # DQN optimiser
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
                 lr=1e-4)
 
+            # Dynamics model optimiser
+            self.optimisers['rollouts'] = t.optim.Adam(self.models['rollouts'].dynamics_model.parameters(),lr=1e-4)
+
+            # Policy head optimiser
+            self.optimisers['policy'] = t.optim.RMSprop([
+                {'params': self.models['policy'].parameters()},
+                {'params': self.models['rollouts'].lstm.parameters()}],
+                lr=1e-4)
+
+
+
+
+
+
+
 
     ##############################################################################################
     ########################################## UTILS #############################################
     ##############################################################################################
+
+    def _aggregate_rollouts(self,rollout_list,state,device):
+
+        rollouts = t.zeros((rollout_list[0].shape[1],self.args.n_actions+1,1024),device=device)
+
+        for idx,val in enumerate(rollout_list):
+            rollouts[:,idx,:] = val
+
+        rollouts[:,-1,:] = state
+
+        rollouts = rollouts.flatten(start_dim=1)
+
+        return rollouts
 
 
 
@@ -472,21 +553,58 @@ class I2A_model:
 
         state, action, reward, next_state, terminal, weights = batch
 
+        state_encoded = self.models['encoder'](state)
+        next_state_encoded = self.models['encoder'].encode(next_state).detach()
+
         # Target value
         with t.no_grad():
-            target = reward + (1 - terminal.int()) * self.args.gamma * target_model(next_state).max(dim=1)[0].detach().unsqueeze(1)
+            target = reward + (1 - terminal.int()) * self.args.gamma * target_model.models['DQN'](next_state_encoded).max(dim=1)[0].detach().unsqueeze(1)
 
         # Network output
-        predicted = self(state).gather(1,action)
+        predicted = self.models['DQN'](state_encoded).gather(1,action)
 
-        loss_DQN = t.abs(predicted - target)
+        loss_DQN = f.smooth_l1_loss(predicted, target,reduction='mean')
 
-        loss = {'DQN': t.mean(loss_DQN*weights)}
+        loss = {'DQN': loss_DQN}
+
+        return loss
+
+    def _loss_rollout_module(self,batch,target,device):
+
+        loss = dict()
+
+        state, action, _, next_state,_,_ = batch
+
+        state = target.models['encoder'].encode(state).detach()
+        next_state = target.models['encoder'].encode(next_state).detach()
+
+        batch = (state,action,next_state)
+
+        for key, value in self.models['rollouts'].get_loss(batch,device).items():
+            loss[key] = value
 
         return loss
 
 
-    def __call__(self,x)->t.tensor:
+    def _loss_policy_head(self,batch,target_model,device):
+
+        state, action, reward, next_state, terminal, weights = batch
+
+        # Target value
+        with t.no_grad():
+            target = reward + (1 - terminal.int()) * self.args.gamma * target_model(next_state,device).max(dim=1)[0].detach().unsqueeze(1)
+
+        # Network output
+        predicted = self(state,device).gather(1,action)
+
+        loss_DQN = f.smooth_l1_loss(predicted, target,reduction='none')
+
+        loss  = {'policy': t.mean(loss_DQN*weights)}
+
+        return loss
+
+
+    def __call__(self,x,device)->t.tensor:
 
         """
         Makes class callable to forward().
@@ -509,7 +627,8 @@ class I2A_model:
                 Q_values in shape (batch_size,num_actions)
         """
 
-        out = self.forward(x)
+        out = self.forward(x,device)
+
         return out
 
 

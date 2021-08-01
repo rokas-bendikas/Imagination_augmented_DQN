@@ -76,6 +76,7 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
 
     # Iterations
     training_itr = 0
+    warmup_itr = 0
 
 
 
@@ -144,6 +145,8 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
             # Train autoencoder
             if (len(buffer) > args.batch_size):
 
+
+                # Main training procedure
                 if not warmup:
                     # Sample a data point from dataset
                     batch = buffer.sample_batch(device,beta,model,target,warmup)
@@ -162,19 +165,37 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
 
                     # Log the results
                     for key,value in loss.items():
-                            writer.add_scalar(key, value.item(),training_itr)
+                            if key == 'DQN':
+                                writer.add_scalar(key, value.item(),warmup_itr)
+                            elif key == 'dynamics':
+                                writer.add_scalar(key, value.item(),warmup_itr)
+                            else:
+                                writer.add_scalar(key, value.item(),training_itr)
 
                     training_itr += 1
+                    warmup_itr += 1
+
+                # Training some modules during warmup
+                else:
+
+                    if itr >= args.warmup/2:
+
+                        # Sample a data point from dataset
+                        batch = buffer.sample_batch(device,beta,model,target,warmup)
+
+                        # Train model
+                        model.train_warmup(target,batch,writer,warmup_itr,device)
+
+                        warmup_itr += 1
 
 
-                if training_itr % args.target_update_frequency == 0:
+                if warmup_itr % args.target_update_frequency == 0:
                     target.copy_from_model(model)
 
         # Log the results
         writer.add_scalar('Episode reward', episode_reward, itr)
         writer.add_scalar('Total reward',total_reward,itr)
         writer.add_scalar('Beta',beta,itr)
-
 
 
         lock.acquire()

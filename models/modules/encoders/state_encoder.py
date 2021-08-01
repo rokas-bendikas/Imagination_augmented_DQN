@@ -65,8 +65,10 @@ class StateEncoder(BaseModel):
                 # batch_size x 256 x 4 x 4
                 Down(256,512),
                 # batch_size x 512 x 2 x 2
+                nn.Conv2d(512, 1024, kernel_size=2, padding=0),
+                # batch_size x 1024 x 1 x 1
                 nn.Flatten())
-                # batch_size x 576
+                # batch_size x 1024
 
 
 
