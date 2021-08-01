@@ -184,9 +184,7 @@ class I2A_model:
             action_discrete = np.random.randint(0,self.args.n_actions)
         else:
             with t.no_grad():
-                self.eval()
                 action_discrete = t.argmax(self(state)).item()
-                self.train()
 
 
 
@@ -443,7 +441,7 @@ class I2A_model:
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
-                lr=5e-5)
+                lr=1e-4)
 
 
     ##############################################################################################
@@ -481,7 +479,8 @@ class I2A_model:
         # Network output
         predicted = self(state).gather(1,action)
 
-        loss_DQN = (predicted - target)**2
+        loss_DQN = t.abs(predicted - target)
+
         loss = {'DQN': t.mean(loss_DQN*weights)}
 
         return loss
@@ -596,6 +595,5 @@ class I2A_model:
             # Updating decay parameters
             epsilon = 1/math.exp((itr-self.args.warmup)/(self.args.num_episodes/3))
             eps = max(epsilon, self.args.min_eps)
-
 
         return eps

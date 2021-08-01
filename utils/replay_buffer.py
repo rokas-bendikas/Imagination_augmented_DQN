@@ -28,7 +28,7 @@ class ReplayBufferDQN:
                                "act": {},
                                "rew": {},
                                "terminal": {}},
-                              alpha=0.6,
+                              alpha=0.5,
                               next_of="obs")
 
 
@@ -43,8 +43,7 @@ class ReplayBufferDQN:
             batch_size = self.args.batch_size
 
         # Get the priotatized batch
-        #sample = self.memory.sample(batch_size,beta)
-        sample = self.memory.sample(batch_size)
+        sample = self.memory.sample(batch_size,beta)
 
         # Structure to fit the network
         states = t.tensor(sample['obs'],device=device) / 255
@@ -56,7 +55,7 @@ class ReplayBufferDQN:
         if self.args.plot:
             plot_batch(states)
 
-        
+
         weights = t.tensor(sample['weights'],device=device).unsqueeze(dim=1)
 
         # Get the indices of the samples
@@ -70,7 +69,7 @@ class ReplayBufferDQN:
 
                 predicted = model(states).gather(1,actions)
 
-            new_priorities = (predicted - target)**2
+            new_priorities = t.abs(predicted - target)
 
             self.memory.update_priorities(indices,new_priorities.squeeze().cpu().numpy())
 

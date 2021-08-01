@@ -48,11 +48,11 @@ def main():
 
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
 
-    parser.add_argument('--min_eps', default=0.1, type=float, help='Minimum value for greedy constant [default = 0.1]')
+    parser.add_argument('--min_eps', default=0.05, type=float, help='Minimum value for greedy constant [default = 0.05]')
 
     parser.add_argument('--buffer_size', default=150000, type=int, help='Buffer size [default = 150000]')
 
-    parser.add_argument('--episode_length', default=300, type=int, help='Episode length [default=200]')
+    parser.add_argument('--episode_length', default=300, type=int, help='Episode length [default=350]')
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 

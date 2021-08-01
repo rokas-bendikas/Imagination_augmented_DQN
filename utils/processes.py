@@ -71,7 +71,7 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
     total_reward = 0
 
     # Beta for IS  linear annealing
-    beta = 0.4
+    beta = 0.0
     beta_step = (1 - beta)/args.num_episodes
 
     # Iterations
