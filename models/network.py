@@ -494,22 +494,16 @@ class I2A_model:
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
-                lr=1e-4)
+                lr=5e-5)
 
             # Dynamics model optimiser
-            self.optimisers['rollouts'] = t.optim.Adam(self.models['rollouts'].dynamics_model.parameters(),lr=1e-4)
+            self.optimisers['rollouts'] = t.optim.RMSprop(self.models['rollouts'].dynamics_model.parameters(),lr=1e-5)
 
             # Policy head optimiser
             self.optimisers['policy'] = t.optim.RMSprop([
                 {'params': self.models['policy'].parameters()},
                 {'params': self.models['rollouts'].lstm.parameters()}],
                 lr=1e-4)
-
-
-
-
-
-
 
 
     ##############################################################################################
