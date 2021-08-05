@@ -1,7 +1,7 @@
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as f
-from models.modules.encoders.utils import DoubleConv,Down,Up
+from models.modules.encoders.utils import Down
 from models.base import BaseModel
 
 class StateEncoder(BaseModel):
@@ -50,23 +50,17 @@ class StateEncoder(BaseModel):
 
         # The encoder network
         self.encoder = nn.Sequential(
-                # batch_size x 4 x 128 x 128
-                DoubleConv(4,8),
-                # batch_size x 8 x 128 x 128
-                Down(8,16),
-                # batch_size x 16 x 64 x 64
-                Down(16,32),
+                # batch_size x 4 x 64 x 64
+                Down(4,32),
                 # batch_size x 32 x 32 x 32
-                Down(32,64),
-                # batch_size x 64 x 16 x 16
-                Down(64,128),
-                # batch_size x 128 x 8 x 8
-                Down(128,256),
-                # batch_size x 256 x 4 x 4
-                Down(256,512),
-                # batch_size x 512 x 2 x 2
+                Down(32,32),
+                # batch_size x 32 x 16 x 16
+                Down(32,32),
+                # batch_size x 32 x 8 x 8
+                Down(32,32),
+                # batch_size x 32 x 4 x 4
                 nn.Flatten())
-                # batch_size x 576
+                # batch_size x 512
 
 
 

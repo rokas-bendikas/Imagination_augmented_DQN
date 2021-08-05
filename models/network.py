@@ -100,6 +100,13 @@ class I2A_model:
         # Set the network to eval() mode
         if self.testing:
             self.eval()
+        else:
+            self.train()
+            
+            # Epsilon single step
+            self.eps_step = (1.0 - self.args.min_eps) / self.args.num_episodes
+
+
 
 
 
@@ -178,13 +185,13 @@ class I2A_model:
         if itr is not None:
             writer.add_scalar('Epsilon value',eps,itr)
 
-
         # Epsilon-greedy policy
         if np.random.rand() < eps:
             action_discrete = np.random.randint(0,self.args.n_actions)
         else:
             with t.no_grad():
                 action_discrete = t.argmax(self(state)).item()
+
 
 
 
@@ -267,7 +274,7 @@ class I2A_model:
     ################################## HELPER FUNCTIONS ##########################################
     ##############################################################################################
 
-    def copy_from_model(self,source_model)->None:
+    def copy_from_model(self,source_model,tau=1)->None:
 
         """
         Copies all the module weights from the identical source_model.
@@ -284,7 +291,9 @@ class I2A_model:
 
         """
 
-        [copy_weights(target,source) for target,source in zip(self.models.values(),source_model.models.values())]
+        [copy_weights(target,source,tau) for target,source in zip(self.models.values(),source_model.models.values())]
+
+
 
     def share_memory(self)->None:
 
@@ -441,7 +450,7 @@ class I2A_model:
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
-                lr=1e-4)
+                lr=1e-5)
 
 
     ##############################################################################################
@@ -476,12 +485,15 @@ class I2A_model:
         with t.no_grad():
             target = reward + (1 - terminal.int()) * self.args.gamma * target_model(next_state).max(dim=1)[0].detach().unsqueeze(1)
 
+
         # Network output
         predicted = self(state).gather(1,action)
 
-        loss_DQN = t.abs(predicted - target)
+        loss_DQN = f.smooth_l1_loss(predicted,target,reduction='none').squeeze()
 
-        loss = {'DQN': t.mean(loss_DQN*weights)}
+        loss = t.mean(loss_DQN*weights)
+
+        loss = {'DQN': loss}
 
         return loss
 
@@ -593,7 +605,9 @@ class I2A_model:
         # Decaying epsilon
         else:
             # Updating decay parameters
-            epsilon = 1/math.exp((itr-self.args.warmup)/(self.args.num_episodes/3))
+            #epsilon = 1/math.exp((itr-self.args.warmup)/(self.args.num_episodes/3))
+            #eps = max(epsilon, self.args.min_eps)
+            epsilon = 1.0 - (itr-self.args.warmup)*self.eps_step
             eps = max(epsilon, self.args.min_eps)
 
         return eps

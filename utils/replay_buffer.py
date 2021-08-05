@@ -24,7 +24,7 @@ class ReplayBufferDQN:
 
 
         self.memory = PrioritizedReplayBuffer(args.buffer_size,
-                              {"obs": {"shape": (4,128,128)},
+                              {"obs": {"shape": (4,64,64)},
                                "act": {},
                                "rew": {},
                                "terminal": {}},
@@ -37,13 +37,13 @@ class ReplayBufferDQN:
         self.args = args
 
 
-    def sample_batch(self,device,beta,model,target_net,warmup,batch_size=None):
+    def sample_batch(self,device,model,target_net,warmup,beta,batch_size=None):
 
         if batch_size==None:
             batch_size = self.args.batch_size
 
         # Get the priotatized batch
-        sample = self.memory.sample(batch_size,beta)
+        sample = self.memory.sample(batch_size,beta=beta)
 
         # Structure to fit the network
         states = t.tensor(sample['obs'],device=device) / 255
@@ -55,24 +55,21 @@ class ReplayBufferDQN:
         if self.args.plot:
             plot_batch(states)
 
+        indexes = sample["indexes"]
+        weights = t.tensor(sample["weights"],device=device)
 
-        weights = t.tensor(sample['weights'],device=device).unsqueeze(dim=1)
 
-        # Get the indices of the samples
-        indices = sample["indexes"]
+        with t.no_grad():
 
-        if not warmup:
+            # Target output
+            target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states).max(dim=1)[0].detach().unsqueeze(1)
 
-            with t.no_grad():
+            # Network output
+            predicted = model(states).gather(1,actions).detach()
 
-                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states).max(dim=1,keepdim=True)[0]
+        loss_DQN = t.abs(predicted-target).squeeze().cpu().numpy()
 
-                predicted = model(states).gather(1,actions)
-
-            new_priorities = t.abs(predicted - target)
-
-            self.memory.update_priorities(indices,new_priorities.squeeze().cpu().numpy())
-
+        self.memory.update_priorities(indexes,loss_DQN)
 
         return (states,actions,rewards,next_states,terminals,weights)
 

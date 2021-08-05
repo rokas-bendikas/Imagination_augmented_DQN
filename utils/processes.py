@@ -70,12 +70,12 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
     # Total reward counter
     total_reward = 0
 
-    # Beta for IS  linear annealing
-    beta = 0.0
-    beta_step = (1 - beta)/args.num_episodes
-
     # Iterations
     training_itr = 0
+
+    # Beta annealing
+    beta = 0.4
+    beta_step = (1.0 - beta) / args.num_episodes
 
 
 
@@ -133,8 +133,9 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
             if (terminal or (e>args.episode_length)):
                 buffer.memory.on_episode_end()
                 if not warmup:
+                    writer.add_scalar('Beta', beta, itr)
                     beta += beta_step
-                    beta = min(beta,1)
+                    beta = min(1,beta)
                 break
 
             ##################################################################
@@ -146,7 +147,7 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
 
                 if not warmup:
                     # Sample a data point from dataset
-                    batch = buffer.sample_batch(device,beta,model,target,warmup)
+                    batch = buffer.sample_batch(device,model,target,warmup,beta)
 
                     # Calculate loss for the batch
                     loss = model.get_losses(batch,target,device)
@@ -166,15 +167,12 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
 
                     training_itr += 1
 
+                    target.copy_from_model(model,tau=0.0001)
 
-                if training_itr % args.target_update_frequency == 0:
-                    target.copy_from_model(model)
 
         # Log the results
         writer.add_scalar('Episode reward', episode_reward, itr)
         writer.add_scalar('Total reward',total_reward,itr)
-        writer.add_scalar('Beta',beta,itr)
-
 
 
         lock.acquire()

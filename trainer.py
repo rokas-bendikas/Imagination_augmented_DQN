@@ -40,8 +40,6 @@ def main():
 
     parser.add_argument('--load_model', default='', help='Path to load the model [default = '']')
 
-    parser.add_argument('--target_update_frequency', default=10, type=int, help='Frequency for syncing target network [default = 10]')
-
     parser.add_argument('--checkpoint_frequency', default=60, type=int, help='Frequency for creating checkpoints [default = 60]')
 
     parser.add_argument('--batch_size', default=32, type=int, help='Batch size for the training [default = 16]')
@@ -50,13 +48,13 @@ def main():
 
     parser.add_argument('--min_eps', default=0.05, type=float, help='Minimum value for greedy constant [default = 0.05]')
 
-    parser.add_argument('--buffer_size', default=150000, type=int, help='Buffer size [default = 150000]')
+    parser.add_argument('--buffer_size', default=200000, type=int, help='Buffer size [default = 150000]')
 
-    parser.add_argument('--episode_length', default=300, type=int, help='Episode length [default=350]')
+    parser.add_argument('--episode_length', default=350, type=int, help='Episode length [default=350]')
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 
-    parser.add_argument('--num_episodes', default=500, type=int, help='How many episodes to plan for (used for decay parameters) [default=500]')
+    parser.add_argument('--num_episodes', default=400, type=int, help='How many episodes to plan for (used for decay parameters) [default=400]')
 
     parser.add_argument('--warmup', default=25, type=int, help='How many full exploration iterations [default=50]')
 
