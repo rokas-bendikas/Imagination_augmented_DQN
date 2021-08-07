@@ -116,6 +116,7 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
                 reward = -0.5
                 terminal = False
 
+
             # Concainating diffrent cameras
             next_state_processed = rgb_to_grayscale(process_state(next_state,device))
             state_processed = rgb_to_grayscale(process_state(state,device))

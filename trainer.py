@@ -54,7 +54,7 @@ def main():
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 
-    parser.add_argument('--num_episodes', default=400, type=int, help='How many episodes to plan for (used for decay parameters) [default=400]')
+    parser.add_argument('--num_episodes', default=500, type=int, help='How many episodes to plan for (used for decay parameters) [default=400]')
 
     parser.add_argument('--warmup', default=25, type=int, help='How many full exploration iterations [default=50]')
 

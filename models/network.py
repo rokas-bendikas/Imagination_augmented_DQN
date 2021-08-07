@@ -102,7 +102,7 @@ class I2A_model:
             self.eval()
         else:
             self.train()
-            
+
             # Epsilon single step
             self.eps_step = (1.0 - self.args.min_eps) / self.args.num_episodes
 
@@ -185,6 +185,7 @@ class I2A_model:
         if itr is not None:
             writer.add_scalar('Epsilon value',eps,itr)
 
+        
         # Epsilon-greedy policy
         if np.random.rand() < eps:
             action_discrete = np.random.randint(0,self.args.n_actions)
@@ -228,6 +229,7 @@ class I2A_model:
 
         action_discrete = action
         """
+
 
 
         # Convert DQN discrete action to continuous
