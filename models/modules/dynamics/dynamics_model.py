@@ -17,11 +17,11 @@ class DynamicsModel(nn.Module):
 
         # Init network modules
         self.model = nn.Sequential(
-            nn.Linear(2048,1536),
+            nn.Linear(1024,768),
             nn.LeakyReLU(0.2),
-            nn.Linear(1536,1536),
+            nn.Linear(768,768),
             nn.LeakyReLU(0.2),
-            nn.Linear(1536,1024))
+            nn.Linear(768,512))
 
 
     # Predict the next state representation given a single action

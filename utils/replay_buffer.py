@@ -24,11 +24,10 @@ class ReplayBufferDQN:
 
 
         self.memory = PrioritizedReplayBuffer(args.buffer_size,
-                              {"obs": {"shape": (4,128,128)},
+                              {"obs": {"shape": (4,64,64)},
                                "act": {},
                                "rew": {},
                                "terminal": {}},
-                              alpha=0.5,
                               next_of="obs")
 
 
@@ -55,24 +54,24 @@ class ReplayBufferDQN:
         if self.args.plot:
             plot_batch(states)
 
+        indexes = sample["indexes"]
+        weights = t.tensor(sample["weights"],device=device)
 
-        weights = t.tensor(sample['weights'],device=device).unsqueeze(dim=1)
+        state_encoded = model.models['encoder'].encode(states)
+        next_state_encoded = target_net.models['encoder'].encode(next_states)
 
-        # Get the indices of the samples
-        indices = sample["indexes"]
 
-        if not warmup:
+        with t.no_grad():
 
-            with t.no_grad():
+            # Target output
+            target = rewards + (1 - terminals.int()) * self.args.gamma * target_net.models['DQN'](next_state_encoded).max(dim=1)[0].detach().unsqueeze(1)
 
-                target = rewards + (1 - terminals.int()) * self.args.gamma * target_net(next_states,device).max(dim=1,keepdim=True)[0]
+            # Network output
+            predicted = model.models['DQN'](state_encoded).gather(1,actions).detach()
 
-                predicted = model(states,device).gather(1,actions)
+            loss_DQN = t.abs(predicted-target).squeeze().cpu().numpy()
 
-            new_priorities = f.smooth_l1_loss(predicted, target,reduction='none')
-
-            self.memory.update_priorities(indices,new_priorities.squeeze().cpu().numpy())
-
+        self.memory.update_priorities(indexes,loss_DQN)
 
         return (states,actions,rewards,next_states,terminals,weights)
 

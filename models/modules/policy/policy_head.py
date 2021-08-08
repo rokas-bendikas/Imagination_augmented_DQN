@@ -8,9 +8,7 @@ class PolicyHead(BaseModel):
         super().__init__()
 
         self.network = nn.Sequential(
-            nn.Linear(1024*(args.n_actions+1),2560),
-            nn.ReLU(),
-            nn.Linear(2560,1280),
+            nn.Linear(512*(args.n_actions+1),1280),
             nn.ReLU(),
             nn.Linear(1280,640),
             nn.ReLU(),

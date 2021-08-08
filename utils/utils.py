@@ -6,8 +6,9 @@ from torchvision.utils import save_image,make_grid
 import numpy as np
 
 
-def copy_weights(target, source):
-    target.load_state_dict(deepcopy(source.state_dict()))
+def copy_weights(target, source,tau=1):
+    for target_param, source_param in zip(target.parameters(),source.parameters()):
+        target_param.data.copy_(tau*source_param.data.to(target_param) + (1.0-tau)*target_param.data)
 
 
 def rgb_to_grayscale(image_rgb):

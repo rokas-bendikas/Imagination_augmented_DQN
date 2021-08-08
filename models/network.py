@@ -103,9 +103,16 @@ class I2A_model:
         if self.testing:
             self.eval()
 
+        else:
+            self.train()
+
+            # Epsilon single step
+            self.eps_step = (1.0 - self.args.min_eps) / self.args.num_episodes
 
 
-    def forward(self,x,device):
+
+
+    def forward(self,x,target,device):
 
         """
         Forward network pass.
@@ -127,7 +134,7 @@ class I2A_model:
             print("Input shape is not correct!")
             raise TypeError
 
-        encoding = self.models['encoder'].encode(x).detach()
+        encoding = self.models['encoder'](x)
 
         # List of all rollouts
         rollouts = list()
@@ -137,7 +144,7 @@ class I2A_model:
             action_tensor = t.full((encoding.shape[0],1),action,device=device)
 
             # Rollout
-            rollouts.append(self.models['rollouts'](encoding,self.models['DQN'],action_tensor,device))
+            rollouts.append(self.models['rollouts'](encoding,target.models['DQN'],action_tensor,device))
 
         encoded_trajectories = self._aggregate_rollouts(rollouts,encoding,device)
 
@@ -193,18 +200,17 @@ class I2A_model:
             writer.add_scalar('Epsilon value',eps,itr)
 
 
+
         # Epsilon-greedy policy
         if np.random.rand() < eps:
             action_discrete = np.random.randint(0,self.args.n_actions)
         else:
             with t.no_grad():
-                action_discrete = t.argmax(self(state,device)).item()
+                action_discrete = t.argmax(self(state,target,device)).item()
 
 
 
         """
-
-
         inp = getch.getch()
 
 
@@ -221,15 +227,6 @@ class I2A_model:
 
         if inp == 'd':
             action = 3
-
-        if inp == 'o':
-            action = 4
-
-        if inp == 'l':
-            action = 5
-
-        if inp == 'm':
-            action = 6
 
 
 
@@ -319,7 +316,7 @@ class I2A_model:
     ################################## HELPER FUNCTIONS ##########################################
     ##############################################################################################
 
-    def copy_from_model(self,source_model)->None:
+    def copy_from_model(self,source_model,tau=1)->None:
 
         """
         Copies all the module weights from the identical source_model.
@@ -336,7 +333,7 @@ class I2A_model:
 
         """
 
-        [copy_weights(target,source) for target,source in zip(self.models.values(),source_model.models.values())]
+        [copy_weights(target,source,tau) for target,source in zip(self.models.values(),source_model.models.values())]
 
     def share_memory(self)->None:
 
@@ -494,7 +491,7 @@ class I2A_model:
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
-                lr=5e-5)
+                lr=1e-5)
 
             # Dynamics model optimiser
             self.optimisers['rollouts'] = t.optim.RMSprop(self.models['rollouts'].dynamics_model.parameters(),lr=1e-5)
@@ -503,7 +500,7 @@ class I2A_model:
             self.optimisers['policy'] = t.optim.RMSprop([
                 {'params': self.models['policy'].parameters()},
                 {'params': self.models['rollouts'].lstm.parameters()}],
-                lr=1e-4)
+                lr=1e-5)
 
 
     ##############################################################################################
@@ -512,7 +509,7 @@ class I2A_model:
 
     def _aggregate_rollouts(self,rollout_list,state,device):
 
-        rollouts = t.zeros((rollout_list[0].shape[1],self.args.n_actions+1,1024),device=device)
+        rollouts = t.zeros((rollout_list[0].shape[1],self.args.n_actions+1,512),device=device)
 
         for idx,val in enumerate(rollout_list):
             rollouts[:,idx,:] = val
@@ -548,7 +545,7 @@ class I2A_model:
         state, action, reward, next_state, terminal, weights = batch
 
         state_encoded = self.models['encoder'](state)
-        next_state_encoded = self.models['encoder'].encode(next_state).detach()
+        next_state_encoded = target_model.models['encoder'].encode(next_state)
 
         # Target value
         with t.no_grad():
@@ -557,9 +554,9 @@ class I2A_model:
         # Network output
         predicted = self.models['DQN'](state_encoded).gather(1,action)
 
-        loss_DQN = f.smooth_l1_loss(predicted, target,reduction='mean')
+        loss_DQN = f.smooth_l1_loss(predicted, target,reduction='none')
 
-        loss = {'DQN': loss_DQN}
+        loss = {'DQN': t.mean(loss_DQN*weights)}
 
         return loss
 
@@ -569,8 +566,8 @@ class I2A_model:
 
         state, action, _, next_state,_,_ = batch
 
-        state = target.models['encoder'].encode(state).detach()
-        next_state = target.models['encoder'].encode(next_state).detach()
+        state = target.models['encoder'].encode(state)
+        next_state = target.models['encoder'].encode(next_state)
 
         batch = (state,action,next_state)
 
@@ -586,19 +583,19 @@ class I2A_model:
 
         # Target value
         with t.no_grad():
-            target = reward + (1 - terminal.int()) * self.args.gamma * target_model(next_state,device).max(dim=1)[0].detach().unsqueeze(1)
+            target = reward + (1 - terminal.int()) * self.args.gamma * target_model(next_state,target_model,device).max(dim=1)[0].detach().unsqueeze(1)
 
         # Network output
-        predicted = self(state,device).gather(1,action)
+        predicted = self(state,target_model,device).gather(1,action)
 
-        loss_DQN = f.smooth_l1_loss(predicted, target,reduction='none')
+        loss_policy = f.smooth_l1_loss(predicted,target,reduction='none').squeeze()
 
-        loss  = {'policy': t.mean(loss_DQN*weights)}
+        loss  = {'policy': t.mean(loss_policy*weights)}
 
         return loss
 
 
-    def __call__(self,x,device)->t.tensor:
+    def __call__(self,x,target_model,device)->t.tensor:
 
         """
         Makes class callable to forward().
@@ -621,7 +618,7 @@ class I2A_model:
                 Q_values in shape (batch_size,num_actions)
         """
 
-        out = self.forward(x,device)
+        out = self.forward(x,target_model,device)
 
         return out
 
@@ -706,7 +703,7 @@ class I2A_model:
         # Decaying epsilon
         else:
             # Updating decay parameters
-            epsilon = 1/math.exp((itr-self.args.warmup)/(self.args.num_episodes/3))
+            epsilon = 1.0 - (itr-self.args.warmup)*self.eps_step
             eps = max(epsilon, self.args.min_eps)
 
         return eps

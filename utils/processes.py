@@ -65,19 +65,17 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
 
     # Initialising the Replay Buffer
     buffer = ReplayBufferDQN(args)
-    minibatch_size = 8
 
     # Total reward counter
     total_reward = 0
 
     # Beta for IS  linear annealing
-    beta = 0.0
-    beta_step = (1 - beta)/args.num_episodes
+    beta = 0.4
+    beta_step = (1.0 - beta) / args.num_episodes
 
     # Iterations
     training_itr = 0
     warmup_itr = 0
-
 
 
     # MAIN TRAINING LOOP
@@ -135,7 +133,7 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
                 buffer.memory.on_episode_end()
                 if not warmup:
                     beta += beta_step
-                    beta = min(beta,1)
+                    beta = min(1,beta)
                 break
 
             ##################################################################
@@ -188,14 +186,12 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
 
                         warmup_itr += 1
 
-
-                if warmup_itr % args.target_update_frequency == 0:
-                    target.copy_from_model(model)
+                target.copy_from_model(model,tau=0.0001)
 
         # Log the results
         writer.add_scalar('Episode reward', episode_reward, itr)
         writer.add_scalar('Total reward',total_reward,itr)
-        writer.add_scalar('Beta',beta,itr)
+        writer.add_scalar('Beta', beta, itr)
 
 
         lock.acquire()

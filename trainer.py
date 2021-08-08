@@ -40,8 +40,6 @@ def main():
 
     parser.add_argument('--load_model', default='', help='Path to load the model [default = '']')
 
-    parser.add_argument('--target_update_frequency', default=10, type=int, help='Frequency for syncing target network [default = 10]')
-
     parser.add_argument('--checkpoint_frequency', default=60, type=int, help='Frequency for creating checkpoints [default = 60]')
 
     parser.add_argument('--batch_size', default=32, type=int, help='Batch size for the training [default = 16]')
@@ -56,7 +54,7 @@ def main():
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 
-    parser.add_argument('--num_episodes', default=500, type=int, help='How many episodes to plan for (used for decay parameters) [default=500]')
+    parser.add_argument('--num_episodes', default=350, type=int, help='How many episodes to plan for (used for decay parameters) [default=500]')
 
     parser.add_argument('--num_rollouts', default=5, type=int, help='How many rollouts to perform [default=3]')
 

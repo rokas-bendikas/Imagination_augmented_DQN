@@ -19,12 +19,12 @@ class RolloutEngine(BaseModel):
         self.imagination_core = ImaginationCore(self.dynamics_model)
 
         # LSTM
-        self.lstm = nn.LSTM(1024, 1024)
+        self.lstm = nn.LSTM(512, 512)
 
 
     def forward(self,state,DQN,action,device):
 
-        encodings = t.zeros((self.args.num_rollouts,self.args.batch_size,1024),device=device)
+        encodings = t.zeros((self.args.num_rollouts,self.args.batch_size,512),device=device)
 
         for i in range(self.args.num_rollouts):
 
@@ -41,8 +41,8 @@ class RolloutEngine(BaseModel):
             state = next_state
 
         ############ Transformer ##############
-        h0 = t.zeros((1,self.args.batch_size,1024),device=device)
-        c0 = t.zeros((1,self.args.batch_size,1024),device=device)
+        h0 = t.zeros((1,self.args.batch_size,512),device=device)
+        c0 = t.zeros((1,self.args.batch_size,512),device=device)
 
         self.lstm.flatten_parameters()
         _, (hn,_) = self.lstm(encodings, (h0, c0))
