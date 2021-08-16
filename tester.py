@@ -20,10 +20,8 @@ if __name__ == '__main__':
     parser.add_argument('--environment', default='RLBench', help='Environment to use for training [default = RLBench]')
     parser.add_argument('--n_tests', default=10,  type=int, help='How many times to run the simulation [default = 10]')
     parser.add_argument('--load_model', default='./checkpoints/', help='Path to load the model [default = ./checkpoints/]')
-    parser.add_argument('--episode_length', default=200, type=int, help='Episode length [default=600]')
-    parser.add_argument('--accelerator', default=True, type=str2bool, help='Use model-based accelerator [default=True]')
+    parser.add_argument('--episode_length', default=100, type=int, help='Episode length [default=100]')
     parser.add_argument('--eps', default=0.01, type=float, help='Greedy constant for the training [default = 0.1]')
-    parser.add_argument('--num_rollouts', default=7, type=int, help='How many rollouts to perform [default=7]')
 
     args = parser.parse_args()
 
