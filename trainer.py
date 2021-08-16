@@ -42,25 +42,25 @@ def main():
 
     parser.add_argument('--checkpoint_frequency', default=60, type=int, help='Frequency for creating checkpoints [default = 60]')
 
-    parser.add_argument('--batch_size', default=32, type=int, help='Batch size for the training [default = 16]')
+    parser.add_argument('--batch_size', default=32, type=int, help='Batch size for the training [default = 32]')
 
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
 
     parser.add_argument('--min_eps', default=0.05, type=float, help='Minimum value for greedy constant [default = 0.05]')
 
-    parser.add_argument('--buffer_size', default=200000, type=int, help='Buffer size [default = 150000]')
+    parser.add_argument('--buffer_size', default=200000, type=int, help='Buffer size [default = 200000]')
 
     parser.add_argument('--episode_length', default=350, type=int, help='Episode length [default=350]')
 
     parser.add_argument('--headless', default=False, type=str2bool, help='Run simulation headless [default=False]')
 
-    parser.add_argument('--num_episodes', default=350, type=int, help='How many episodes to plan for (used for decay parameters) [default=500]')
+    parser.add_argument('--num_episodes', default=350, type=int, help='How many episodes to plan for (used for decay parameters) [default=350]')
 
-    parser.add_argument('--num_rollouts', default=5, type=int, help='How many rollouts to perform [default=3]')
+    parser.add_argument('--num_rollouts', default=5, type=int, help='How many rollouts to perform [default=5]')
 
     parser.add_argument('--warmup', default=50, type=int, help='How many full exploration iterations [default=50]')
 
-    parser.add_argument('--plot', default=True, type=str2bool, help='Plot the accelerator predictions? [default=False]')
+    parser.add_argument('--plot', default=True, type=str2bool, help='Plot the accelerator predictions? [default=True]')
 
     args = parser.parse_args()
 

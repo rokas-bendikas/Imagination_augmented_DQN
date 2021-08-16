@@ -55,9 +55,6 @@ def perform(NETWORK,simulator,args):
                 terminal = False
 
 
-            print(reward)
-
-
 
             # Concainating diffrent cameras
             next_state_processed = rgb_to_grayscale(process_state(next_state,device))
