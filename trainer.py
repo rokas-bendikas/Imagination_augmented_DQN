@@ -46,7 +46,7 @@ def main():
 
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
 
-    parser.add_argument('--min_eps', default=0.05, type=float, help='Minimum value for greedy constant [default = 0.05]')
+    parser.add_argument('--min_eps', default=0.01, type=float, help='Minimum value for greedy constant [default = 0.01]')
 
     parser.add_argument('--buffer_size', default=200000, type=int, help='Buffer size [default = 200000]')
 
@@ -56,7 +56,7 @@ def main():
 
     parser.add_argument('--num_episodes', default=350, type=int, help='How many episodes to plan for (used for decay parameters) [default=350]')
 
-    parser.add_argument('--num_rollouts', default=5, type=int, help='How many rollouts to perform [default=5]')
+    parser.add_argument('--num_rollouts', default=7, type=int, help='How many rollouts to perform [default=7]')
 
     parser.add_argument('--warmup', default=50, type=int, help='How many full exploration iterations [default=50]')
 
