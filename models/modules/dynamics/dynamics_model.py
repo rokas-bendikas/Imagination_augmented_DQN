@@ -21,7 +21,8 @@ class DynamicsModel(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Linear(768,768),
             nn.LeakyReLU(0.2),
-            nn.Linear(768,512))
+            nn.Linear(768,512),
+            nn.ReLU())
 
 
     # Predict the next state representation given a single action
