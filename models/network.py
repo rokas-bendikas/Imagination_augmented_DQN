@@ -494,13 +494,13 @@ class I2A_model:
                 lr=1e-5)
 
             # Dynamics model optimiser
-            self.optimisers['rollouts'] = t.optim.RMSprop(self.models['rollouts'].dynamics_model.parameters(),lr=1e-5)
+            self.optimisers['rollouts'] = t.optim.RMSprop(self.models['rollouts'].dynamics_model.parameters(),lr=5e-5)
 
             # Policy head optimiser
             self.optimisers['policy'] = t.optim.RMSprop([
                 {'params': self.models['policy'].parameters()},
                 {'params': self.models['rollouts'].lstm.parameters()}],
-                lr=1e-5)
+                lr=5e-6)
 
 
     ##############################################################################################
