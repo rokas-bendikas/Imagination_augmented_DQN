@@ -65,9 +65,10 @@ def perform(NETWORK,simulator,args):
             state = next_state
 
             if (terminal):
-                print("\nTrial {} reached the goal!".format(n+1))
+
                 num_reached += 1
-                if abs(reward - 5.0) < 1e-3:
+
+                if abs(reward - 5.0) < 1e-5:
                     num_no_collision += 1
                 break
 
