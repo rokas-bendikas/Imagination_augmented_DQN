@@ -25,6 +25,7 @@ def perform(NETWORK,simulator,args):
     target = deepcopy(model)
 
     num_reached = 0
+    num_no_collision = 0
 
     simulator.launch()
 
@@ -59,14 +60,18 @@ def perform(NETWORK,simulator,args):
             next_state_processed = rgb_to_grayscale(process_state(next_state,device))
             state_processed = rgb_to_grayscale(process_state(state,device))
 
+
             episode_reward += reward
             state = next_state
 
             if (terminal):
                 print("\nTrial {} reached the goal!".format(n+1))
                 num_reached += 1
+                if abs(reward - 5.0) < 1e-3:
+                    num_no_collision += 1
                 break
 
         print("\nEpisode reward: {}".format(episode_reward))
 
     print("\n\nSuccess rate: {}/{}".format(num_reached,args.n_tests))
+    print("Number of trials with no collisions: {}/{}".format(num_no_collision,args.n_tests))
