@@ -72,7 +72,7 @@ def perform(NETWORK,simulator,args):
                     num_no_collision += 1
                 break
 
-        print("\nEpisode reward: {}".format(episode_reward))
+        print("\nEpisode {} reward: {}".format(n+1,episode_reward))
 
     print("\n\nSuccess rate: {}/{}".format(num_reached,args.n_tests))
     print("Number of trials with no collisions: {}/{}".format(num_no_collision,args.n_tests))

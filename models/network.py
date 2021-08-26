@@ -185,7 +185,7 @@ class I2A_model:
         if itr is not None:
             writer.add_scalar('Epsilon value',eps,itr)
 
-        
+
         # Epsilon-greedy policy
         if np.random.rand() < eps:
             action_discrete = np.random.randint(0,self.args.n_actions)
@@ -452,7 +452,7 @@ class I2A_model:
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
-                lr=1e-5)
+                lr=1e-6)
 
 
     ##############################################################################################

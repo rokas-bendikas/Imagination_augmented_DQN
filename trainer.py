@@ -40,15 +40,15 @@ def main():
 
     parser.add_argument('--load_model', default='', help='Path to load the model [default = '']')
 
-    parser.add_argument('--checkpoint_frequency', default=60, type=int, help='Frequency for creating checkpoints [default = 60]')
+    parser.add_argument('--checkpoint_frequency', default=45, type=int, help='Frequency for creating checkpoints [default = 45]')
 
-    parser.add_argument('--batch_size', default=32, type=int, help='Batch size for the training [default = 16]')
+    parser.add_argument('--batch_size', default=32, type=int, help='Batch size for the training [default = 32]')
 
     parser.add_argument('--gamma', default=0.99, type=float, help='Discount factor for the training [default = 0.99]')
 
-    parser.add_argument('--min_eps', default=0.01, type=float, help='Minimum value for greedy constant [default = 0.05]')
+    parser.add_argument('--min_eps', default=0.01, type=float, help='Minimum value for greedy constant [default = 0.01]')
 
-    parser.add_argument('--buffer_size', default=200000, type=int, help='Buffer size [default = 150000]')
+    parser.add_argument('--buffer_size', default=300000, type=int, help='Buffer size [default = 300000]')
 
     parser.add_argument('--episode_length', default=350, type=int, help='Episode length [default=350]')
 
@@ -56,9 +56,9 @@ def main():
 
     parser.add_argument('--num_episodes', default=1000, type=int, help='How many episodes to plan for (used for decay parameters) [default=1000]')
 
-    parser.add_argument('--warmup', default=25, type=int, help='How many full exploration iterations [default=50]')
+    parser.add_argument('--warmup', default=25, type=int, help='How many full exploration iterations [default=25]')
 
-    parser.add_argument('--plot', default=True, type=str2bool, help='Plot the accelerator predictions? [default=False]')
+    parser.add_argument('--plot', default=False, type=str2bool, help='Plot the accelerator predictions? [default=False]')
 
     args = parser.parse_args()
 
