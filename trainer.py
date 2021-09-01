@@ -25,8 +25,6 @@ def str2bool(v):
 def main():
 
     shutil.rmtree('tensorboard', ignore_errors=True)
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
     if not os.path.exists('plots'):
