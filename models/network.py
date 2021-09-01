@@ -473,7 +473,6 @@ class I2A_model:
         ----------
             None
 
-
         Returns
         -------
             None
@@ -491,10 +490,10 @@ class I2A_model:
             self.optimisers['DQN'] = t.optim.RMSprop([
                 {'params': self.models['encoder'].parameters()},
                 {'params': self.models['DQN'].parameters()}],
-                lr=1e-6)
+                lr=1e-5)
 
             # Dynamics model optimiser
-            self.optimisers['rollouts'] = t.optim.RMSprop(self.models['rollouts'].dynamics_model.parameters(),lr=1e-6)
+            self.optimisers['rollouts'] = t.optim.RMSprop(self.models['rollouts'].dynamics_model.parameters(),lr=5e-5)
 
             # Policy head optimiser
             self.optimisers['policy'] = t.optim.RMSprop([
@@ -566,12 +565,12 @@ class I2A_model:
 
         state, action, _, next_state,_,_ = batch
 
-        state = target.models['encoder'].encode(state)
-        next_state = target.models['encoder'].encode(next_state)
+        state_e = target.models['encoder'].encode(state)
+        next_state_e = target.models['encoder'].encode(next_state)
 
-        batch = (state,action,next_state)
+        batch_encoded = (state_e,action,next_state_e)
 
-        for key, value in self.models['rollouts'].get_loss(batch,device).items():
+        for key, value in self.models['rollouts'].get_loss(batch_encoded,device).items():
             loss[key] = value
 
         return loss
