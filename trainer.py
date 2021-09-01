@@ -56,7 +56,7 @@ def main():
 
     parser.add_argument('--num_episodes', default=1000, type=int, help='How many episodes to plan for (used for decay parameters) [default=1000]')
 
-    parser.add_argument('--num_rollouts', default=5, type=int, help='How many rollouts to perform [default=5]')
+    parser.add_argument('--num_rollouts', default=7, type=int, help='How many rollouts to perform [default=7]')
 
     parser.add_argument('--warmup', default=50, type=int, help='How many full exploration iterations [default=50]')
 

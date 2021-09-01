@@ -143,7 +143,6 @@ def train_DQN(model_shared,NETWORK,SIMULATOR,args,lock)->None:
             # Train autoencoder
             if (len(buffer) > args.batch_size):
 
-
                 # Main training procedure
                 if not warmup:
                     # Sample a data point from dataset
